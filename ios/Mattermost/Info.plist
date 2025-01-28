@@ -21,7 +21,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.5.1</string>
+	<string>2.25.0</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleURLTypes</key>
@@ -37,12 +37,10 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>476</string>
+	<string>596</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
-	<true/>
-	<key>NSAllowsArbitraryLoads</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
@@ -64,19 +62,15 @@
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>Enabling access to Bluetooth means we can connect to audio peripherals for calls, and synchronize content across your devices and clients.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Enabling access to your device cameras means you can take photos or videos and upload them to $(PRODUCT_NAME).</string>
+	<string>Allowing access to your camera enables you to take photos or videos and attach them to messages.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Enabling access to your Face ID means we can restrict unauthorized users from accessing $(PRODUCT_NAME) on your device.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Enabling access to your location data means we can add location metadata to pictures and videos you share in $(PRODUCT_NAME).</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Enabling access to your location data means we can add location metadata to pictures and videos you share in $(PRODUCT_NAME).</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Enabling access to your device's microphones means you can capture audio for calls or videos to share in $(PRODUCT_NAME).</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Enabling write access to your photo library means you can save downloaded photos and videos from $(PRODUCT_NAME) to your device.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Enabling read access to your photo library means you can upload photos and videos from your device to $(PRODUCT_NAME).</string>
+	<string>Allowing access to your photo library enables you to select photos or videos and attach them to messages.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Enabling your device to send user data to Apple means you can send voice messages to $(PRODUCT_NAME).</string>
 	<key>NSUserActivityTypes</key>
@@ -105,12 +99,13 @@
 		<string>audio</string>
 		<string>fetch</string>
 		<string>remote-notification</string>
+		<string>voip</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<key>UIRequiresFullScreen</key>
 	<false/>

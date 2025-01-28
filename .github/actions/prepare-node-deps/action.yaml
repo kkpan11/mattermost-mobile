@@ -5,9 +5,9 @@ runs:
   using: composite
   steps:
     - name: ci/setup-node
-      uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c # v3.6.0
+      uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
       with:
-        node-version: "${{ env.NODE_VERSION }}"
+        node-version-file: ".nvmrc"
         cache: "npm"
         cache-dependency-path: package-lock.json
 
@@ -20,6 +20,14 @@ runs:
         npm ci --ignore-scripts
         node node_modules/\@sentry/cli/scripts/install.js
         echo "::endgroup::"
+
+    - name: Cache Node.js modules
+      uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
+      with:
+        path: ~/.npm
+        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-
 
     - name: ci/patch-npm-dependencies
       shell: bash

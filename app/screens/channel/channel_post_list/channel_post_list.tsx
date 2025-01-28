@@ -5,7 +5,7 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {type StyleProp, StyleSheet, type ViewStyle, DeviceEventEmitter} from 'react-native';
 import {type Edge, SafeAreaView} from 'react-native-safe-area-context';
 
-import {markChannelAsRead} from '@actions/remote/channel';
+import {markChannelAsRead, unsetActiveChannelOnServer} from '@actions/remote/channel';
 import {fetchPosts, fetchPostsBefore} from '@actions/remote/post';
 import {PER_PAGE_DEFAULT} from '@client/rest/constants';
 import PostList from '@components/post_list';
@@ -19,20 +19,19 @@ import EphemeralStore from '@store/ephemeral_store';
 import Intro from './intro';
 
 import type PostModel from '@typings/database/models/servers/post';
+import type {AnimatedStyle} from 'react-native-reanimated';
 
 type Props = {
     channelId: string;
-    contentContainerStyle?: StyleProp<ViewStyle>;
+    contentContainerStyle?: StyleProp<AnimatedStyle<ViewStyle>>;
     isCRTEnabled: boolean;
     lastViewedAt: number;
     nativeID: string;
     posts: PostModel[];
     shouldShowJoinLeaveMessages: boolean;
-    currentCallBarVisible: boolean;
-    joinCallBannerVisible: boolean;
 }
 
-const edges: Edge[] = ['bottom'];
+const edges: Edge[] = [];
 const styles = StyleSheet.create({
     flex: {flex: 1},
     containerStyle: {paddingTop: 12},
@@ -41,7 +40,6 @@ const styles = StyleSheet.create({
 const ChannelPostList = ({
     channelId, contentContainerStyle, isCRTEnabled,
     lastViewedAt, nativeID, posts, shouldShowJoinLeaveMessages,
-    currentCallBarVisible, joinCallBannerVisible,
 }: Props) => {
     const appState = useAppState();
     const isTablet = useIsTablet();
@@ -86,12 +84,27 @@ const ChannelPostList = ({
         }
     }, [fetchingPosts, posts]);
 
-    useEffect(() => {
+    useDidUpdate(() => {
         if (oldPostsCount.current < posts.length && appState === 'active') {
             oldPostsCount.current = posts.length;
             markChannelAsRead(serverUrl, channelId, true);
         }
-    }, [isCRTEnabled, posts, channelId, serverUrl, appState === 'active']);
+    }, [posts.length]);
+
+    useDidUpdate(() => {
+        if (appState === 'active') {
+            markChannelAsRead(serverUrl, channelId, true);
+        }
+        if (appState !== 'active') {
+            unsetActiveChannelOnServer(serverUrl);
+        }
+    }, [appState === 'active']);
+
+    useEffect(() => {
+        return () => {
+            unsetActiveChannelOnServer(serverUrl);
+        };
+    }, []);
 
     const intro = (<Intro channelId={channelId}/>);
 
@@ -109,8 +122,6 @@ const ChannelPostList = ({
             shouldShowJoinLeaveMessages={shouldShowJoinLeaveMessages}
             showMoreMessages={true}
             testID='channel.post_list'
-            currentCallBarVisible={currentCallBarVisible}
-            joinCallBannerVisible={joinCallBannerVisible}
         />
     );
 

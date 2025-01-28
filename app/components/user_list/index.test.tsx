@@ -2,13 +2,27 @@
 // See LICENSE.txt for license information.
 
 import React from 'react';
+import {Image} from 'react-native';
 
+import {Ringtone} from '@constants/calls';
 import {renderWithEverything} from '@test/intl-test-helper';
 import TestHelper from '@test/test_helper';
 
 import UserList from '.';
 
 import type Database from '@nozbe/watermelondb/Database';
+
+const mockClient = TestHelper.createClient();
+
+jest.mock('@managers/network_manager', () => {
+    const original = jest.requireActual('@managers/network_manager');
+    return {
+        ...original,
+        getClient: () => {
+            return mockClient;
+        },
+    };
+});
 
 describe('components/channel_list_row', () => {
     let database: Database;
@@ -26,6 +40,7 @@ describe('components/channel_list_row', () => {
         position: '',
         roles: '',
         locale: '',
+        last_picture_update: 123456,
         notify_props: {
             channel: 'true',
             comments: 'never',
@@ -34,8 +49,13 @@ describe('components/channel_list_row', () => {
             email: 'true',
             first_name: 'true',
             mention_keys: '',
+            highlight_keys: '',
             push: 'mention',
             push_status: 'away',
+            calls_desktop_sound: 'true',
+            calls_mobile_sound: '',
+            calls_notification_sound: Ringtone.Calm,
+            calls_mobile_notification_sound: '',
         },
     };
 
@@ -53,6 +73,7 @@ describe('components/channel_list_row', () => {
         position: '',
         roles: '',
         locale: '',
+        last_picture_update: 123456,
         notify_props: {
             channel: 'true',
             comments: 'never',
@@ -61,20 +82,36 @@ describe('components/channel_list_row', () => {
             email: 'true',
             first_name: 'true',
             mention_keys: '',
+            highlight_keys: '',
             push: 'mention',
             push_status: 'away',
+            calls_desktop_sound: 'true',
+            calls_mobile_sound: '',
+            calls_notification_sound: Ringtone.Calm,
+            calls_mobile_notification_sound: '',
         },
     };
+
+    const originalResolveAssetSource = Image.resolveAssetSource;
 
     beforeAll(async () => {
         const server = await TestHelper.setupServerDatabase();
         database = server.database;
+
+        // This is needed to properly populate the URLs until
+        // https://github.com/facebook/react-native/pull/43497
+        // gets into React Native Jest code.
+        Image.resolveAssetSource = jest.fn().mockImplementation((source) => source);
+    });
+
+    afterAll(() => {
+        Image.resolveAssetSource = originalResolveAssetSource;
     });
 
     it('should show no results', () => {
         const wrapper = renderWithEverything(
             <UserList
-                profiles={[user]}
+                profiles={[]}
                 testID='UserListRow'
                 currentUserId={'1'}
                 handleSelectProfile={() => {
@@ -85,6 +122,7 @@ describe('components/channel_list_row', () => {
                 }}
                 loading={true}
                 selectedIds={{}}
+                term={'some term'}
                 showNoResults={true}
                 tutorialWatched={true}
             />,

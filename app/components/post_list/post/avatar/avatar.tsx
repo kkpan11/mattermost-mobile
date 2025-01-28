@@ -1,21 +1,21 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import {Image} from 'expo-image';
 import React, {type ReactNode} from 'react';
 import {useIntl} from 'react-intl';
 import {Keyboard, Platform, StyleSheet, TouchableOpacity, View} from 'react-native';
-import FastImage from 'react-native-fast-image';
 
+import {buildAbsoluteUrl} from '@actions/remote/file';
 import CompassIcon from '@components/compass_icon';
 import ProfilePicture from '@components/profile_picture';
 import {Screens, View as ViewConstant} from '@constants';
 import {useServerUrl} from '@context/server';
 import {useTheme} from '@context/theme';
-import NetworkManager from '@managers/network_manager';
 import {openAsBottomSheet} from '@screens/navigation';
 import {preventDoubleTap} from '@utils/tap';
+import {ensureString} from '@utils/types';
 
-import type {Client} from '@client/rest';
 import type PostModel from '@typings/database/models/servers/post';
 import type UserModel from '@typings/database/models/servers/user';
 
@@ -37,27 +37,24 @@ const Avatar = ({author, enablePostIconOverride, isAutoReponse, location, post}:
     const intl = useIntl();
     const theme = useTheme();
     const serverUrl = useServerUrl();
-    let client: Client | undefined;
-    try {
-        client = NetworkManager.getClient(serverUrl);
-    } catch {
-        // do nothing, client is not set
-    }
 
     const fromWebHook = post.props?.from_webhook === 'true';
     const iconOverride = enablePostIconOverride && post.props?.use_user_icon !== 'true';
+    const propsIconUrl = ensureString(post.props?.override_icon_url);
+    const propsUsername = ensureString(post.props?.override_username);
+
     if (fromWebHook && iconOverride) {
         const isEmoji = Boolean(post.props?.override_icon_emoji);
         const frameSize = ViewConstant.PROFILE_PICTURE_SIZE;
         const pictureSize = isEmoji ? ViewConstant.PROFILE_PICTURE_EMOJI_SIZE : ViewConstant.PROFILE_PICTURE_SIZE;
         const borderRadius = isEmoji ? 0 : ViewConstant.PROFILE_PICTURE_SIZE / 2;
-        const overrideIconUrl = client?.getAbsoluteUrl(post.props?.override_icon_url);
+        const overrideIconUrl = buildAbsoluteUrl(serverUrl, propsIconUrl);
 
         let iconComponent: ReactNode;
         if (overrideIconUrl) {
             const source = {uri: overrideIconUrl};
             iconComponent = (
-                <FastImage
+                <Image
                     source={source}
                     style={{
                         height: pictureSize,
@@ -102,8 +99,8 @@ const Avatar = ({author, enablePostIconOverride, isAutoReponse, location, post}:
             userId: author.id,
             channelId: post.channelId,
             location,
-            userIconOverride: post.props?.override_username,
-            usernameOverride: post.props?.override_icon_url,
+            userIconOverride: propsIconUrl,
+            usernameOverride: propsUsername,
         };
 
         Keyboard.dismiss();

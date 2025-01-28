@@ -43,9 +43,13 @@ const hitSlop = {top: 11, bottom: 11, left: 11, right: 11};
 const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
     return {
         actionContainer: {
+            flex: 1,
             flexDirection: 'row',
             alignItems: 'center',
             marginLeft: 16,
+        },
+        actionSubContainer: {
+            marginLeft: 'auto',
         },
         container: {
             flexDirection: 'row',
@@ -61,8 +65,9 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
             marginTop: DESCRIPTION_MARGIN_TOP,
         },
         iconContainer: {marginRight: 16},
-        infoContainer: {marginRight: 2},
         info: {
+            flex: 1,
+            textAlign: 'right',
             color: changeOpacity(theme.centerChannelColor, 0.56),
             ...typography('Body', 100),
         },
@@ -99,7 +104,7 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
             ...typography('Body', 200),
         },
         row: {
-            flex: 1,
+            flex: 3,
             flexDirection: 'row',
         },
     };
@@ -107,7 +112,7 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
 
 export type OptionItemProps = {
     action?: (React.Dispatch<React.SetStateAction<string | boolean>>)|((value: string | boolean) => void);
-    arrowStyle?: StyleProp<ViewStyle>;
+    arrowStyle?: StyleProp<Intersection<TextStyle, ViewStyle>>;
     containerStyle?: StyleProp<ViewStyle>;
     description?: string;
     destructive?: boolean;
@@ -209,7 +214,7 @@ const OptionItem = ({
                 value={selected}
                 trackColor={trackColor}
                 thumbColor={thumbColor}
-                testID={`${testID}.toggled.${selected}`}
+                testID={`${testID}.toggled.${selected}.${value}`}
             />
         );
     } else if (type === OptionType.ARROW) {
@@ -265,6 +270,7 @@ const OptionItem = ({
                         <Text
                             style={[labelTextStyle, optionLabelTextStyle]}
                             testID={`${testID}.label`}
+                            numberOfLines={1}
                         >
                             {label}
                         </Text>
@@ -284,16 +290,17 @@ const OptionItem = ({
             <View style={styles.actionContainer}>
                 {
                     Boolean(info) &&
-                    <View style={styles.infoContainer}>
-                        <Text
-                            style={[styles.info, !actionComponent && styles.iconContainer, destructive && {color: theme.dndIndicator}]}
-                            testID={`${testID}.info`}
-                        >
-                            {info}
-                        </Text>
-                    </View>
+                    <Text
+                        style={[styles.info, !actionComponent && styles.iconContainer, destructive && {color: theme.dndIndicator}]}
+                        testID={`${testID}.info`}
+                        numberOfLines={1}
+                    >
+                        {info}
+                    </Text>
                 }
-                {actionComponent}
+                <View style={styles.actionSubContainer}>
+                    {actionComponent}
+                </View>
             </View>
             }
         </View>

@@ -67,12 +67,12 @@ export function createProfilesSections(intl: IntlShape, profiles: UserProfile[],
         return [];
     }
 
-    const sections = new Map<string, UserProfile[]>();
+    const sections = new Map<string, UserProfileWithChannelAdmin[]>();
 
     if (members?.length) {
         // when channel members are provided, build the sections by admins and members
         const membersDictionary = new Map<string, ChannelMembership>();
-        const membersSections = new Map<string, UserProfile[]>();
+        const membersSections = new Map<string, UserProfileWithChannelAdmin[]>();
         const {formatMessage} = intl;
         members.forEach((m) => membersDictionary.set(m.user_id, m));
         profiles.forEach((p) => {
@@ -80,7 +80,7 @@ export function createProfilesSections(intl: IntlShape, profiles: UserProfile[],
             if (member) {
                 const sectionKey = sectionRoleKeyExtractor(member.scheme_admin!).id;
                 const section = membersSections.get(sectionKey) || [];
-                section.push(p);
+                section.push({...p, scheme_admin: member.scheme_admin});
                 membersSections.set(sectionKey, section);
             }
         });
@@ -109,6 +109,28 @@ export function createProfilesSections(intl: IntlShape, profiles: UserProfile[],
         }
     }
     return results;
+}
+
+function createProfiles(profiles: UserProfile[], members?: ChannelMembership[]): UserProfileWithChannelAdmin[] {
+    if (!profiles.length) {
+        return [];
+    }
+
+    const profileMap = new Map<string, UserProfileWithChannelAdmin>();
+    profiles.forEach((profile) => {
+        profileMap.set(profile.id, profile);
+    });
+
+    if (members?.length) {
+        members.forEach((m) => {
+            const profileFound = profileMap.get(m.user_id);
+            if (profileFound) {
+                profileFound.scheme_admin = m.scheme_admin;
+            }
+        });
+    }
+
+    return Array.from(profileMap.values());
 }
 
 const getStyleFromTheme = makeStyleSheetFromTheme((theme) => {
@@ -195,11 +217,11 @@ export default function UserList({
         }
 
         if (term) {
-            return profiles;
+            return createProfiles(profiles, channelMembers);
         }
 
         return createProfilesSections(intl, profiles, channelMembers);
-    }, [channelMembers, loading, profiles, term]);
+    }, [channelMembers, intl, loading, profiles, term]);
 
     const openUserProfile = useCallback(async (profile: UserProfile | UserModel) => {
         let user: UserModel;
@@ -224,7 +246,7 @@ export default function UserList({
 
         Keyboard.dismiss();
         openAsBottomSheet({screen, title, theme, closeButtonId, props});
-    }, []);
+    }, [intl, serverUrl, theme]);
 
     const renderItem = useCallback(({item, index, section}: RenderItemType) => {
         // The list will re-render when the selection changes because it's passed into the list as extraData
@@ -253,7 +275,7 @@ export default function UserList({
                 includeMargin={includeUserMargin}
             />
         );
-    }, [selectedIds, handleSelectProfile, showManageMode, manageMode, tutorialWatched, includeUserMargin]);
+    }, [selectedIds, currentUserId, manageMode, handleSelectProfile, openUserProfile, showManageMode, tutorialWatched, includeUserMargin]);
 
     const renderLoading = useCallback(() => {
         if (!loading) {
@@ -337,7 +359,7 @@ export default function UserList({
     };
 
     if (term) {
-        return renderFlatList(data as UserProfile[]);
+        return renderFlatList(data as UserProfileWithChannelAdmin[]);
     }
-    return renderSectionList(data as Array<SectionListData<UserProfile>>);
+    return renderSectionList(data as Array<SectionListData<UserProfileWithChannelAdmin>>);
 }

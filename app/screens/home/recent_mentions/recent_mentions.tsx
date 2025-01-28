@@ -4,7 +4,7 @@
 import {useIsFocused, useRoute} from '@react-navigation/native';
 import React, {useCallback, useState, useEffect, useMemo} from 'react';
 import {useIntl} from 'react-intl';
-import {ActivityIndicator, DeviceEventEmitter, FlatList, type ListRenderItemInfo, StyleSheet, View} from 'react-native';
+import {ActivityIndicator, DeviceEventEmitter, type ListRenderItemInfo, View} from 'react-native';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {SafeAreaView, type Edge} from 'react-native-safe-area-context';
 
@@ -14,30 +14,31 @@ import DateSeparator from '@components/post_list/date_separator';
 import PostWithChannelInfo from '@components/post_with_channel_info';
 import RoundedHeaderContext from '@components/rounded_header_context';
 import {Events, Screens} from '@constants';
+import {ExtraKeyboardProvider} from '@context/extra_keyboard';
 import {useServerUrl} from '@context/server';
 import {useTheme} from '@context/theme';
 import {useCollapsibleHeader} from '@hooks/header';
 import {getDateForDateLine, selectOrderedPosts} from '@utils/post_list';
+import {makeStyleSheetFromTheme} from '@utils/theme';
 
 import EmptyState from './components/empty';
 
 import type {PostListItem, PostListOtherItem, ViewableItemsChanged} from '@typings/components/post_list';
 import type PostModel from '@typings/database/models/servers/post';
 
-const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 const EDGES: Edge[] = ['bottom', 'left', 'right'];
 
 type Props = {
     appsEnabled: boolean;
     customEmojiNames: string[];
     currentTimezone: string | null;
-    isTimezoneEnabled: boolean;
     mentions: PostModel[];
 }
 
-const styles = StyleSheet.create({
+const getStyleSheet = makeStyleSheetFromTheme((theme) => ({
     flex: {
         flex: 1,
+        backgroundColor: theme.centerChannelBg,
     },
     container: {
         flex: 1,
@@ -47,9 +48,9 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
     },
-});
+}));
 
-const RecentMentionsScreen = ({appsEnabled, customEmojiNames, mentions, currentTimezone, isTimezoneEnabled}: Props) => {
+const RecentMentionsScreen = ({appsEnabled, customEmojiNames, mentions, currentTimezone}: Props) => {
     const theme = useTheme();
     const route = useRoute();
     const isFocused = useIsFocused();
@@ -57,6 +58,7 @@ const RecentMentionsScreen = ({appsEnabled, customEmojiNames, mentions, currentT
     const [refreshing, setRefreshing] = useState(false);
     const [loading, setLoading] = useState(true);
     const serverUrl = useServerUrl();
+    const styles = getStyleSheet(theme);
 
     const params = route.params as {direction: string};
     const toLeft = params.direction === 'left';
@@ -85,9 +87,9 @@ const RecentMentionsScreen = ({appsEnabled, customEmojiNames, mentions, currentT
         }
     }, [serverUrl, isFocused]);
 
-    const {scrollPaddingTop, scrollRef, scrollValue, onScroll, headerHeight} = useCollapsibleHeader<FlatList<string>>(true, onSnap);
+    const {scrollPaddingTop, scrollRef, scrollValue, onScroll, headerHeight} = useCollapsibleHeader<Animated.FlatList<string>>(true, onSnap);
     const paddingTop = useMemo(() => ({paddingTop: scrollPaddingTop, flexGrow: 1}), [scrollPaddingTop]);
-    const posts = useMemo(() => selectOrderedPosts(mentions, 0, false, '', '', false, isTimezoneEnabled, currentTimezone, false).reverse(), [mentions]);
+    const posts = useMemo(() => selectOrderedPosts(mentions, 0, false, '', '', false, currentTimezone, false).reverse(), [mentions]);
 
     const animated = useAnimatedStyle(() => {
         return {
@@ -143,7 +145,7 @@ const RecentMentionsScreen = ({appsEnabled, customEmojiNames, mentions, currentT
                     <DateSeparator
                         key={item.value}
                         date={getDateForDateLine(item.value)}
-                        timezone={isTimezoneEnabled ? currentTimezone : null}
+                        timezone={currentTimezone}
                     />
                 );
             case 'post':
@@ -163,7 +165,7 @@ const RecentMentionsScreen = ({appsEnabled, customEmojiNames, mentions, currentT
     }, [appsEnabled, customEmojiNames]);
 
     return (
-        <>
+        <ExtraKeyboardProvider>
             <NavigationHeader
                 isLargeTitle={true}
                 showBackButton={false}
@@ -181,7 +183,7 @@ const RecentMentionsScreen = ({appsEnabled, customEmojiNames, mentions, currentT
                     <Animated.View style={top}>
                         <RoundedHeaderContext/>
                     </Animated.View>
-                    <AnimatedFlatList
+                    <Animated.FlatList
                         ref={scrollRef}
                         contentContainerStyle={paddingTop}
                         ListEmptyComponent={renderEmptyList()}
@@ -201,7 +203,7 @@ const RecentMentionsScreen = ({appsEnabled, customEmojiNames, mentions, currentT
                     />
                 </Animated.View>
             </SafeAreaView>
-        </>
+        </ExtraKeyboardProvider>
     );
 };
 

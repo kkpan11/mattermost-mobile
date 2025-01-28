@@ -39,7 +39,6 @@
         "baseUrl": ".",
         "paths": {
             "@actions/*": ["app/actions/*"],
-            "@app/*": ["app/*"],
             "@assets/*": ["dist/assets/*"],
             "@calls/*": ["app/products/calls/*"],
             "@client/*": ["app/client/*"],
@@ -53,7 +52,6 @@
             "@i18n": ["app/i18n/index"],
             "@init/*": ["app/init/*"],
             "@managers/*": ["app/managers/*"],
-            "@notifications": ["app/notifications/index"],
             "@queries/*": ["app/queries/*"],
             "@screens/*": ["app/screens/*"],
             "@selectors/*": ["app/selectors/*"],
@@ -65,7 +63,6 @@
             "@test/*": ["test/*"],
             "@utils/*": ["app/utils/*"],
             "@websocket": ["app/client/websocket"],
-            "*": ["./*", "node_modules/*"],
         }
     },
     "include": ["app/**/*", "share_extension/**/*", "test/**/*", "types/**/*"],

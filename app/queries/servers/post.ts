@@ -190,6 +190,11 @@ export const queryPostsById = (database: Database, postIds: string[], sort?: Q.S
     return database.get<PostModel>(POST).query(...clauses);
 };
 
+export const queryPostsByType = (database: Database, type: string) => {
+    const clauses: Q.Clause[] = [Q.where('type', type)];
+    return database.get<PostModel>(POST).query(...clauses);
+};
+
 export const queryPostsBetween = (database: Database, earliest: number, latest: number, sort: Q.SortOrder | null, userId?: string, channelId?: string, rootId?: string) => {
     const andClauses = [Q.where('create_at', Q.between(earliest, latest))];
     if (channelId) {
@@ -234,9 +239,8 @@ export const observeSavedPostsByIds = (database: Database, postIds: string[]) =>
 };
 
 export const getIsPostPriorityEnabled = async (database: Database) => {
-    const featureFlag = await getConfigValue(database, 'FeatureFlagPostPriority');
     const cfg = await getConfigValue(database, 'PostPriority');
-    return featureFlag === 'true' && cfg === 'true';
+    return cfg === 'true';
 };
 
 export const getIsPostAcknowledgementsEnabled = async (database: Database) => {
@@ -245,13 +249,7 @@ export const getIsPostAcknowledgementsEnabled = async (database: Database) => {
 };
 
 export const observeIsPostPriorityEnabled = (database: Database) => {
-    const featureFlag = observeConfigBooleanValue(database, 'FeatureFlagPostPriority');
-    const cfg = observeConfigBooleanValue(database, 'PostPriority');
-    return featureFlag.pipe(
-        combineLatestWith(cfg),
-        switchMap(([ff, c]) => of$(ff && c)),
-        distinctUntilChanged(),
-    );
+    return observeConfigBooleanValue(database, 'PostPriority');
 };
 
 export const observeIsPostAcknowledgementsEnabled = (database: Database) => {

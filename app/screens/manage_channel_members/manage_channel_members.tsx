@@ -14,8 +14,9 @@ import UserList from '@components/user_list';
 import {Events, General, Screens} from '@constants';
 import {useServerUrl} from '@context/server';
 import {useTheme} from '@context/theme';
+import useAndroidHardwareBackHandler from '@hooks/android_back_handler';
 import useNavButtonPressed from '@hooks/navigation_button_pressed';
-import {openAsBottomSheet, setButtons} from '@screens/navigation';
+import {openAsBottomSheet, popTopScreen, setButtons} from '@screens/navigation';
 import NavigationStore from '@store/navigation_store';
 import {showRemoveChannelUserSnackbar} from '@utils/snack_bar';
 import {changeOpacity, getKeyboardAppearanceFromTheme} from '@utils/theme';
@@ -83,10 +84,11 @@ export default function ManageChannelMembers({
 
     const searchTimeoutId = useRef<NodeJS.Timeout | null>(null);
     const mounted = useRef(false);
+    const hasMoreProfiles = useRef(true);
+    const pageRef = useRef(0);
 
     const [isManageMode, setIsManageMode] = useState(false);
     const [profiles, setProfiles] = useState<UserProfile[]>(EMPTY);
-    const hasMoreProfiles = useRef(false);
     const [channelMembers, setChannelMembers] = useState<ChannelMembership[]>(EMPTY_MEMBERS);
     const [searchResults, setSearchResults] = useState<UserProfile[]>(EMPTY);
     const [loading, setLoading] = useState(true);
@@ -96,7 +98,16 @@ export default function ManageChannelMembers({
     const clearSearch = useCallback(() => {
         setTerm('');
         setSearchResults(EMPTY);
+        if (searchTimeoutId.current) {
+            clearTimeout(searchTimeoutId.current);
+        }
     }, []);
+
+    const close = useCallback(() => {
+        popTopScreen(componentId);
+    }, [componentId]);
+
+    useAndroidHardwareBackHandler(componentId, close);
 
     const handleSelectProfile = useCallback(async (profile: UserProfile) => {
         if (profile.id === currentUserId && isManageMode) {
@@ -119,7 +130,7 @@ export default function ManageChannelMembers({
 
         Keyboard.dismiss();
         openAsBottomSheet({screen: USER_PROFILE, title, theme, closeButtonId: CLOSE_BUTTON_ID, props});
-    }, [canManageAndRemoveMembers, channelId, isManageMode, currentUserId]);
+    }, [currentUserId, isManageMode, formatMessage, channelId, canManageAndRemoveMembers, theme, serverUrl]);
 
     const searchUsers = useCallback(async (searchTerm: string) => {
         setSearchedTerm(searchTerm);
@@ -224,23 +235,38 @@ export default function ManageChannelMembers({
 
     useNavButtonPressed(MANAGE_BUTTON, componentId, toggleManageEnabled, [toggleManageEnabled]);
 
+    const getFetchChannelMembers = useCallback(async () => {
+        const options: GetUsersOptions = {sort: 'admin', active: true, per_page: PER_PAGE_DEFAULT, page: pageRef.current};
+        const {users, members} = await fetchChannelMemberships(serverUrl, channelId, options, true);
+
+        if (!mounted.current) {
+            return;
+        }
+
+        if (users.length < PER_PAGE_DEFAULT) {
+            hasMoreProfiles.current = false;
+        }
+
+        if (users.length) {
+            setChannelMembers((prev) => [...prev, ...members]);
+            setProfiles((prev) => [...prev, ...users]);
+        }
+
+        setLoading(false);
+    }, [serverUrl, channelId]);
+
+    const handleReachedBottom = useCallback(() => {
+        if (hasMoreProfiles.current && !loading && !searchedTerm) {
+            pageRef.current += 1;
+            setLoading(true);
+            getFetchChannelMembers();
+        }
+    }, [loading, searchedTerm, getFetchChannelMembers]);
+
     useEffect(() => {
         mounted.current = true;
-        const options: GetUsersOptions = {sort: 'admin', active: true, per_page: PER_PAGE_DEFAULT};
-        fetchChannelMemberships(serverUrl, channelId, options, true).then(({users, members}) => {
-            if (!mounted.current) {
-                return;
-            }
+        getFetchChannelMembers();
 
-            if (users.length >= PER_PAGE_DEFAULT) {
-                hasMoreProfiles.current = true;
-            }
-            if (users.length) {
-                setProfiles(users);
-                setChannelMembers(members);
-            }
-            setLoading(false);
-        });
         return () => {
             mounted.current = false;
         };
@@ -294,6 +320,7 @@ export default function ManageChannelMembers({
                 testID='manage_members.user_list'
                 tutorialWatched={tutorialWatched}
                 includeUserMargin={true}
+                fetchMore={handleReachedBottom}
             />
         </SafeAreaView>
     );

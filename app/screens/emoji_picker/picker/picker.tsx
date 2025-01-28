@@ -31,11 +31,13 @@ type Props = {
     customEmojis: CustomEmojiModel[];
     customEmojisEnabled: boolean;
     onEmojiPress: (emoji: string) => void;
+    imageUrl?: string;
+    file?: ExtractedFileInfo;
     recentEmojis: string[];
     testID?: string;
 }
 
-const Picker = ({customEmojis, customEmojisEnabled, onEmojiPress, recentEmojis, testID = ''}: Props) => {
+const Picker = ({customEmojis, customEmojisEnabled, file, imageUrl, onEmojiPress, recentEmojis, testID = ''}: Props) => {
     const theme = useTheme();
     const serverUrl = useServerUrl();
     const [searchTerm, setSearchTerm] = useState<string|undefined>();
@@ -44,7 +46,7 @@ const Picker = ({customEmojis, customEmojisEnabled, onEmojiPress, recentEmojis, 
 
     const onChangeSearchTerm = useCallback((text: string) => {
         setSearchTerm(text);
-        searchCustom(text);
+        searchCustom(text.replace(/^:|:$/g, '').trim());
     }, []);
 
     const searchCustom = debounce((text: string) => {
@@ -54,11 +56,12 @@ const Picker = ({customEmojis, customEmojisEnabled, onEmojiPress, recentEmojis, 
     }, 500);
 
     let EmojiList: React.ReactNode = null;
-    if (searchTerm) {
+    const term = searchTerm?.replace(/^:|:$/g, '').trim();
+    if (term) {
         EmojiList = (
             <EmojiFiltered
                 customEmojis={customEmojis}
-                searchTerm={searchTerm}
+                searchTerm={term}
                 onEmojiPress={onEmojiPress}
             />
         );
@@ -67,6 +70,8 @@ const Picker = ({customEmojis, customEmojisEnabled, onEmojiPress, recentEmojis, 
             <EmojiSections
                 customEmojis={customEmojis}
                 customEmojisEnabled={customEmojisEnabled}
+                imageUrl={imageUrl}
+                file={file}
                 onEmojiPress={onEmojiPress}
                 recentEmojis={recentEmojis}
             />

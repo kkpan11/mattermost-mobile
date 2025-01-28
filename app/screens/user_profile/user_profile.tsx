@@ -45,6 +45,8 @@ type Props = {
     user: UserModel;
     userIconOverride?: string;
     usernameOverride?: string;
+    hideGuestTags: boolean;
+    enableCustomAttributes: boolean;
 }
 
 const TITLE_HEIGHT = 118;
@@ -84,13 +86,15 @@ const UserProfile = ({
     user,
     userIconOverride,
     usernameOverride,
+    hideGuestTags,
+    enableCustomAttributes,
 }: Props) => {
     const {formatMessage, locale} = useIntl();
     const serverUrl = useServerUrl();
-    const {bottom} = useSafeAreaInsets();
     const channelContext = channelContextScreens.includes(location);
     const showOptions: OptionsType = channelContext && !user.isBot ? 'all' : 'message';
     const override = Boolean(userIconOverride || usernameOverride);
+    const {bottom} = useSafeAreaInsets();
     const timezone = getUserTimezone(user);
     const customStatus = getUserCustomStatus(user);
     let localTime: string|undefined;
@@ -143,15 +147,19 @@ const UserProfile = ({
             }
         }
 
-        const extraHeight = manageMode ? 0 : EXTRA_HEIGHT;
+        const extraHeight = manageMode ? 0 : (EXTRA_HEIGHT - bottom);
 
         return [
             1,
-            bottomSheetSnapPoint(optionsCount, LABEL_HEIGHT, bottom) + title + extraHeight,
+            bottomSheetSnapPoint(optionsCount, LABEL_HEIGHT) + title + extraHeight,
+            '90%',
         ];
     }, [
-        showUserProfileOptions, showCustomStatus, showNickname,
-        showPosition, showLocalTime, bottom,
+        headerText, showUserProfileOptions, showCustomStatus,
+        showNickname, showPosition, showLocalTime,
+        manageMode, bottom, showOptions,
+        canChangeMemberRoles, canManageAndRemoveMembers,
+        enableCustomAttributes,
     ]);
 
     useEffect(() => {
@@ -175,6 +183,7 @@ const UserProfile = ({
                     user={user}
                     userIconOverride={userIconOverride}
                     usernameOverride={usernameOverride}
+                    hideGuestTags={hideGuestTags}
                 />
                 {showUserProfileOptions &&
                     <UserProfileOptions
@@ -184,7 +193,7 @@ const UserProfile = ({
                         userId={user.id}
                     />
                 }
-                {!manageMode &&
+                {!manageMode && (
                     <UserInfo
                         localTime={localTime}
                         showCustomStatus={showCustomStatus}
@@ -192,8 +201,9 @@ const UserProfile = ({
                         showPosition={showPosition}
                         showLocalTime={showLocalTime}
                         user={user}
+                        enableCustomAttributes={enableCustomAttributes}
                     />
-                }
+                )}
                 {manageMode && channelId && (canManageAndRemoveMembers || canChangeMemberRoles) &&
                     <ManageUserOptions
                         canChangeMemberRoles={canChangeMemberRoles}

@@ -103,7 +103,7 @@ class AppsManager {
         }
     };
 
-    fetchBindings = async (serverUrl: string, channelId: string, forThread = false) => {
+    fetchBindings = async (serverUrl: string, channelId: string, forThread = false, groupLabel?: RequestGroupLabel) => {
         try {
             const {database} = DatabaseManager.getServerDatabaseAndOperator(serverUrl);
             const userId = await getCurrentUserId(database);
@@ -114,7 +114,7 @@ class AppsManager {
             }
 
             const client = NetworkManager.getClient(serverUrl);
-            const fetchedBindings = await client.getAppsBindings(userId, channelId, teamId);
+            const fetchedBindings = await client.getAppsBindings(userId, channelId, teamId, groupLabel);
             const validatedBindings = validateBindings(fetchedBindings);
             const bindingsToStore = validatedBindings.length ? validatedBindings : emptyBindings;
 
@@ -135,23 +135,24 @@ class AppsManager {
         }
     };
 
-    refreshAppBindings = async (serverUrl: string) => {
+    refreshAppBindings = async (serverUrl: string, groupLabel?: RequestGroupLabel) => {
         try {
             const {database} = DatabaseManager.getServerDatabaseAndOperator(serverUrl);
-            const appsEnabled = (await getConfig(database))?.FeatureFlagAppsEnabled === 'true';
+            const appsEnabled = await this.isAppsEnabled(serverUrl);
             if (!appsEnabled) {
                 this.getEnabledSubject(serverUrl).next(false);
                 this.clearServer(serverUrl);
+                return;
             }
 
             const channelId = await getCurrentChannelId(database);
 
             // We await here, since errors on this call may clear the thread bindings
-            await this.fetchBindings(serverUrl, channelId);
+            await this.fetchBindings(serverUrl, channelId, false, groupLabel);
 
             const threadChannelId = this.getThreadsBindingsSubject(serverUrl).value.channelId;
             if (threadChannelId) {
-                await this.fetchBindings(serverUrl, threadChannelId, true);
+                await this.fetchBindings(serverUrl, threadChannelId, true, groupLabel);
             }
         } catch (error) {
             logDebug('Error refreshing apps', error);

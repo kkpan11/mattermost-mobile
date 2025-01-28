@@ -155,6 +155,7 @@ export type ProcessRecordsArgs = {
   tableName: string;
   fieldName: string;
   buildKeyRecordBy?: (obj: Record<string, any>) => string;
+  shouldUpdate?: (existing: Record<string, any>, newRaw: Record<string, any>) => boolean;
 };
 
 export type HandleRecordsArgs<T extends Model> = {
@@ -165,6 +166,7 @@ export type HandleRecordsArgs<T extends Model> = {
   deleteRawValues?: RawValue[];
   tableName: string;
   prepareRecordsOnly: boolean;
+  shouldUpdate?: (existingRecord: T, newRaw: RawValue) => boolean;
 };
 
 export type RangeOfValueArgs = {
@@ -222,6 +224,10 @@ export type HandleMyChannelSettingsArgs = PrepareOnly & {
 
 export type HandleChannelArgs = PrepareOnly & {
   channels?: Channel[];
+};
+
+export type HandleChannelBookmarkArgs = PrepareOnly & {
+  bookmarks?: ChannelBookmarkWithFileInfo[];
 };
 
 export type HandleCategoryArgs = PrepareOnly & {

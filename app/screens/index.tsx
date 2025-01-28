@@ -15,15 +15,11 @@ import {DEFAULT_LOCALE, getTranslations} from '@i18n';
 
 const withGestures = (Screen: React.ComponentType, styles: StyleProp<ViewStyle>) => {
     return function gestureHoc(props: any) {
-        if (Platform.OS === 'android') {
-            return (
-                <GestureHandlerRootView style={[{flex: 1}, styles]}>
-                    <Screen {...props}/>
-                </GestureHandlerRootView>
-            );
-        }
-
-        return <Screen {...props}/>;
+        return (
+            <GestureHandlerRootView style={[{flex: 1}, styles]}>
+                <Screen {...props}/>
+            </GestureHandlerRootView>
+        );
     };
 };
 
@@ -73,7 +69,7 @@ Navigation.setLazyComponentRegistrator((screenName) => {
         case Screens.BOTTOM_SHEET:
             screen = withServerDatabase(require('@screens/bottom_sheet').default);
             Navigation.registerComponent(Screens.BOTTOM_SHEET, () =>
-                withSafeAreaInsets(withManagedConfig(screen)),
+                withGestures(withSafeAreaInsets(withManagedConfig(screen)), undefined),
             );
             return;
         case Screens.BROWSE_CHANNELS:
@@ -81,6 +77,9 @@ Navigation.setLazyComponentRegistrator((screenName) => {
             break;
         case Screens.CHANNEL:
             screen = withServerDatabase(require('@screens/channel').default);
+            break;
+        case Screens.CHANNEL_BOOKMARK:
+            screen = withServerDatabase(require('@screens/channel_bookmark').default);
             break;
         case Screens.CHANNEL_NOTIFICATION_PREFERENCES:
             screen = withServerDatabase(require('@screens/channel_notification_preferences').default);
@@ -93,6 +92,9 @@ Navigation.setLazyComponentRegistrator((screenName) => {
             break;
         case Screens.CODE:
             screen = withServerDatabase(require('@screens/code').default);
+            break;
+        case Screens.CONVERT_GM_TO_CHANNEL:
+            screen = withServerDatabase(require('@screens/convert_gm_to_channel').default);
             break;
         case Screens.CREATE_OR_EDIT_CHANNEL:
             screen = withServerDatabase(require('@screens/create_or_edit_channel').default);
@@ -108,6 +110,9 @@ Navigation.setLazyComponentRegistrator((screenName) => {
             break;
         case Screens.CHANNEL_ADD_MEMBERS:
             screen = withServerDatabase(require('@screens/channel_add_members').default);
+            break;
+        case Screens.DRAFT_OPTIONS:
+            screen = withServerDatabase(require('@screens/draft_options').default);
             break;
         case Screens.EDIT_POST:
             screen = withServerDatabase(require('@screens/edit_post').default);
@@ -129,6 +134,12 @@ Navigation.setLazyComponentRegistrator((screenName) => {
             break;
         case Screens.GALLERY:
             screen = withServerDatabase(require('@screens/gallery').default);
+            break;
+        case Screens.GENERIC_OVERLAY:
+            screen = withServerDatabase(require('@screens/overlay').default);
+            break;
+        case Screens.GLOBAL_DRAFTS:
+            screen = withServerDatabase(require('@screens/global_drafts').default);
             break;
         case Screens.GLOBAL_THREADS:
             screen = withServerDatabase(require('@screens/global_threads').default);
@@ -227,6 +238,9 @@ Navigation.setLazyComponentRegistrator((screenName) => {
         case Screens.SETTINGS_NOTIFICATION_PUSH:
             screen = withServerDatabase(require('@screens/settings/notification_push').default);
             break;
+        case Screens.SETTINGS_NOTIFICATION_CALL:
+            screen = withServerDatabase(require('@screens/settings/notification_call').default);
+            break;
         case Screens.SHARE_FEEDBACK:
             screen = withServerDatabase(require('@screens/share_feedback').default);
             break;
@@ -245,6 +259,9 @@ Navigation.setLazyComponentRegistrator((screenName) => {
             break;
         case Screens.TABLE:
             screen = withServerDatabase(require('@screens/table').default);
+            break;
+        case Screens.TEAM_SELECTOR_LIST:
+            screen = withServerDatabase(require('@screens/convert_gm_to_channel/team_selector_list').default);
             break;
         case Screens.TERMS_OF_SERVICE:
             screen = withServerDatabase(require('@screens/terms_of_service').default);
@@ -266,6 +283,12 @@ Navigation.setLazyComponentRegistrator((screenName) => {
         case Screens.CALL:
             screen = withServerDatabase(require('@calls/screens/call_screen').default);
             break;
+        case Screens.CALL_PARTICIPANTS:
+            screen = withServerDatabase(require('@calls/screens/participants_list').default);
+            break;
+        case Screens.CALL_HOST_CONTROLS:
+            screen = withServerDatabase(require('@calls/screens/host_controls').default);
+            break;
     }
 
     if (screen) {
@@ -278,6 +301,6 @@ export function registerScreens() {
     const serverScreen = require('@screens/server').default;
     const onboardingScreen = require('@screens/onboarding').default;
     Navigation.registerComponent(Screens.ONBOARDING, () => withGestures(withIntl(withManagedConfig(onboardingScreen)), undefined));
-    Navigation.registerComponent(Screens.SERVER, () => withGestures(withIntl(withManagedConfig(serverScreen)), undefined));
+    Navigation.registerComponent(Screens.SERVER, () => withSafeAreaInsets(withGestures(withIntl(withManagedConfig(serverScreen)), undefined)));
     Navigation.registerComponent(Screens.HOME, () => withGestures(withSafeAreaInsets(withServerDatabase(withManagedConfig(homeScreen))), undefined));
 }

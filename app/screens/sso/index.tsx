@@ -1,8 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import {useManagedConfig} from '@mattermost/react-native-emm';
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {Platform, StyleSheet, useWindowDimensions, View} from 'react-native';
 import {Navigation} from 'react-native-navigation';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
@@ -18,8 +17,8 @@ import {dismissModal, popTopScreen, resetToHome} from '@screens/navigation';
 import {getFullErrorMessage, isErrorWithUrl} from '@utils/errors';
 import {logWarning} from '@utils/log';
 
-import SSOWithRedirectURL from './sso_with_redirect_url';
-import SSOWithWebView from './sso_with_webview';
+import SSOAuthentication from './sso_authentication';
+import SSOAuthenticationWithExternalBrowser from './sso_authentication_with_external_browser';
 
 import type {LaunchProps} from '@typings/launch';
 import type {AvailableScreens} from '@typings/screens/navigation';
@@ -47,37 +46,29 @@ const SSO = ({
     launchError, launchType, serverDisplayName,
     serverUrl, ssoType, theme,
 }: SSOProps) => {
-    const managedConfig = useManagedConfig<ManagedConfig>();
-    const inAppSessionAuth = managedConfig?.inAppSessionAuth === 'true';
     const dimensions = useWindowDimensions();
-    const translateX = useSharedValue(inAppSessionAuth ? 0 : dimensions.width);
+    const translateX = useSharedValue(dimensions.width);
 
     const [loginError, setLoginError] = useState<string>('');
-    let completeUrlPath = '';
     let loginUrl = '';
     switch (ssoType) {
         case Sso.GOOGLE: {
-            completeUrlPath = '/signup/google/complete';
             loginUrl = `${serverUrl}/oauth/google/mobile_login`;
             break;
         }
         case Sso.GITLAB: {
-            completeUrlPath = '/signup/gitlab/complete';
             loginUrl = `${serverUrl}/oauth/gitlab/mobile_login`;
             break;
         }
         case Sso.SAML: {
-            completeUrlPath = '/login/sso/saml';
             loginUrl = `${serverUrl}/login/sso/saml?action=mobile`;
             break;
         }
         case Sso.OFFICE365: {
-            completeUrlPath = '/signup/office365/complete';
             loginUrl = `${serverUrl}/oauth/office365/mobile_login`;
             break;
         }
         case Sso.OPENID: {
-            completeUrlPath = '/signup/openid/complete';
             loginUrl = `${serverUrl}/oauth/openid/mobile_login`;
             break;
         }
@@ -113,12 +104,12 @@ const SSO = ({
         resetToHome({extra, launchError: hasError, launchType, serverUrl});
     };
 
-    const dismiss = () => {
+    const dismiss = useCallback(() => {
         if (serverUrl) {
             NetworkManager.invalidateClient(serverUrl);
         }
         dismissModal({componentId});
-    };
+    }, [componentId, serverUrl]);
 
     const transform = useAnimatedStyle(() => {
         const duration = Platform.OS === 'android' ? 250 : 350;
@@ -146,14 +137,16 @@ const SSO = ({
     }, []);
 
     useNavButtonPressed(closeButtonId || '', componentId, dismiss, []);
-    useAndroidHardwareBackHandler(componentId, () => {
+
+    const onBackPressed = useCallback(() => {
         if (closeButtonId) {
             dismiss();
             return;
         }
 
         popTopScreen(componentId);
-    });
+    }, [closeButtonId, dismiss, componentId]);
+    useAndroidHardwareBackHandler(componentId, onBackPressed);
 
     const props = {
         doSSOLogin,
@@ -163,21 +156,17 @@ const SSO = ({
         theme,
     };
 
-    let ssoComponent;
-    if (inAppSessionAuth) {
-        ssoComponent = (
-            <SSOWithWebView
+    let authentication;
+    if (config.MobileExternalBrowser === 'true') {
+        authentication = (
+            <SSOAuthenticationWithExternalBrowser
                 {...props}
-                completeUrlPath={completeUrlPath}
-                serverUrl={serverUrl!}
-                ssoType={ssoType}
             />
         );
     } else {
-        ssoComponent = (
-            <SSOWithRedirectURL
+        authentication = (
+            <SSOAuthentication
                 {...props}
-                serverUrl={serverUrl!}
             />
         );
     }
@@ -186,7 +175,7 @@ const SSO = ({
         <View style={styles.flex}>
             <Background theme={theme}/>
             <AnimatedSafeArea style={[styles.flex, transform]}>
-                {ssoComponent}
+                {authentication}
             </AnimatedSafeArea>
         </View>
     );

@@ -16,10 +16,11 @@ import type ReactionModel from '@typings/database/models/servers/reaction';
 import type TeamMembershipModel from '@typings/database/models/servers/team_membership';
 import type ThreadParticipantsModel from '@typings/database/models/servers/thread_participant';
 import type UserModelInterface from '@typings/database/models/servers/user';
-import type {UserMentionKey} from '@typings/global/markdown';
+import type {UserMentionKey, HighlightWithoutNotificationKey} from '@typings/global/markdown';
 
 const {
     CHANNEL,
+    CHANNEL_BOOKMARK,
     CHANNEL_MEMBERSHIP,
     POST,
     PREFERENCE,
@@ -42,6 +43,9 @@ export default class UserModel extends Model implements UserModelInterface {
 
         /** USER has a 1:N relationship with CHANNEL.  A user can create multiple channels */
         [CHANNEL]: {type: 'has_many', foreignKey: 'creator_id'},
+
+        /** USER has a 1:N relationship with CHANNEL_BOOKMARK.  A user can create multiple channels */
+        [CHANNEL_BOOKMARK]: {type: 'has_many', foreignKey: 'owner_id'},
 
         /** USER has a 1:N relationship with CHANNEL_MEMBERSHIP.  A user can be part of multiple channels */
         [CHANNEL_MEMBERSHIP]: {type: 'has_many', foreignKey: 'user_id'},
@@ -193,5 +197,25 @@ export default class UserModel extends Model implements UserModelInterface {
             m.key !== '@channel' &&
             m.key !== '@here'
         ));
+    }
+
+    get highlightKeys() {
+        if (!this.notifyProps) {
+            return [];
+        }
+
+        const highlightWithoutNotificationKeys: HighlightWithoutNotificationKey[] = [];
+
+        if (this.notifyProps?.highlight_keys?.length) {
+            this.notifyProps.highlight_keys.
+                split(',').
+                forEach((key) => {
+                    if (key.trim().length > 0) {
+                        highlightWithoutNotificationKeys.push({key: key.trim()});
+                    }
+                });
+        }
+
+        return highlightWithoutNotificationKeys;
     }
 }

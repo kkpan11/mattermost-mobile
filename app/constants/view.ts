@@ -5,6 +5,9 @@ import {Platform} from 'react-native';
 
 export const BOTTOM_TAB_HEIGHT = 52;
 export const BOTTOM_TAB_ICON_SIZE = 31.2;
+export const BOTTOM_TAB_PROFILE_PHOTO_SIZE = 22;
+export const BOTTOM_TAB_STATUS_SIZE = 12;
+
 export const PROFILE_PICTURE_SIZE = 32;
 export const PROFILE_PICTURE_EMOJI_SIZE = 28;
 
@@ -21,11 +24,13 @@ export const KEYBOARD_TRACKING_OFFSET = 72;
 export const SEARCH_INPUT_HEIGHT = Platform.select({android: 40, default: 36});
 export const SEARCH_INPUT_MARGIN = 5;
 
-export const JOIN_CALL_BAR_HEIGHT = 38;
-export const CURRENT_CALL_BAR_HEIGHT = 68;
-export const CALL_ERROR_BAR_HEIGHT = 62;
+export const JOIN_CALL_BAR_HEIGHT = 40;
+export const CURRENT_CALL_BAR_HEIGHT = 60;
+export const CALL_ERROR_BAR_HEIGHT = 52;
+export const CALL_NOTIFICATION_BAR_HEIGHT = 40;
 
 export const ANNOUNCEMENT_BAR_HEIGHT = 40;
+export const BOOKMARKS_BAR_HEIGHT = 48;
 
 export const HOME_PADDING = {
     paddingLeft: 18,

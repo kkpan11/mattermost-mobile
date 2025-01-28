@@ -8,13 +8,14 @@ import {MM_TABLES} from '@constants/database';
 import {buildDraftKey} from '@database/operator/server_data_operator/comparators';
 import {
     transformDraftRecord,
-    transformFileRecord,
     transformPostInThreadRecord,
     transformPostRecord,
     transformPostsInChannelRecord,
 } from '@database/operator/server_data_operator/transformers/post';
 import {getRawRecordPairs, getUniqueRawsBy, getValidRecordsForUpdate} from '@database/operator/utils/general';
 import {createPostsChain, getPostListEdges} from '@database/operator/utils/post';
+import FileModel from '@typings/database/models/servers/file';
+import {safeParseJSON} from '@utils/helpers';
 import {logWarning} from '@utils/log';
 
 import type ServerDataOperatorBase from '.';
@@ -22,7 +23,6 @@ import type Database from '@nozbe/watermelondb/Database';
 import type Model from '@nozbe/watermelondb/Model';
 import type {HandleDraftArgs, HandleFilesArgs, HandlePostsArgs, RecordPair} from '@typings/database/database';
 import type DraftModel from '@typings/database/models/servers/draft';
-import type FileModel from '@typings/database/models/servers/file';
 import type PostModel from '@typings/database/models/servers/post';
 import type PostsInChannelModel from '@typings/database/models/servers/posts_in_channel';
 import type PostsInThreadModel from '@typings/database/models/servers/posts_in_thread';
@@ -30,7 +30,6 @@ import type ReactionModel from '@typings/database/models/servers/reaction';
 
 const {
     DRAFT,
-    FILE,
     POST,
     POSTS_IN_CHANNEL,
     POSTS_IN_THREAD,
@@ -179,7 +178,8 @@ const PostHandler = <TBase extends Constructor<ServerDataOperatorBase>>(supercla
 
             // Process the metadata of each post
             if (post?.metadata && Object.keys(post?.metadata).length > 0) {
-                const data = post.metadata;
+                // parsing into json since notifications are sending metadata as a string
+                const data = safeParseJSON(post.metadata) as PostMetadata;
 
                 // Extracts reaction from post's metadata
                 if (data.reactions) {
@@ -217,8 +217,8 @@ const PostHandler = <TBase extends Constructor<ServerDataOperatorBase>>(supercla
             return result;
         }, new Set<string>());
 
+        const database: Database = this.database;
         if (deletedPostIds.size) {
-            const database: Database = this.database;
             const postsToDelete = await database.get<PostModel>(POST).query(Q.where('id', Q.oneOf(Array.from(deletedPostIds)))).fetch();
             if (postsToDelete.length) {
                 await database.write(async () => {
@@ -234,6 +234,7 @@ const PostHandler = <TBase extends Constructor<ServerDataOperatorBase>>(supercla
             deleteRawValues: pendingPostsToDelete,
             tableName,
             fieldName: 'id',
+            shouldUpdate: (e: PostModel, n: Post) => n.update_at > e.updateAt,
         }));
 
         const preparedPosts = (await this.prepareRecords({
@@ -258,6 +259,14 @@ const PostHandler = <TBase extends Constructor<ServerDataOperatorBase>>(supercla
             const postFiles = await this.handleFiles({files, prepareRecordsOnly: true});
             batch.push(...postFiles);
         }
+
+        const allFiles = await database.get<FileModel>(MM_TABLES.SERVER.FILE).query(Q.where('post_id', Q.oneOf(uniquePosts.map((p) => p.id)))).fetch();
+        const receivedFilesSet = new Set(files.map((f) => f.id));
+        allFiles.forEach((f) => {
+            if (!receivedFilesSet.has(f.id)) {
+                batch.push(f.prepareDestroyPermanently());
+            }
+        });
 
         if (emojis.length) {
             const postEmojis = await this.handleCustomEmojis({emojis, prepareRecordsOnly: true});
@@ -287,46 +296,6 @@ const PostHandler = <TBase extends Constructor<ServerDataOperatorBase>>(supercla
         }
 
         return batch;
-    };
-
-    /**
-     * handleFiles: Handler responsible for the Create/Update operations occurring on the File table from the 'Server' schema
-     * @param {HandleFilesArgs} handleFiles
-     * @param {RawFile[]} handleFiles.files
-     * @param {boolean} handleFiles.prepareRecordsOnly
-     * @returns {Promise<FileModel[]>}
-     */
-    handleFiles = async ({files, prepareRecordsOnly}: HandleFilesArgs): Promise<FileModel[]> => {
-        if (!files?.length) {
-            logWarning(
-                'An empty or undefined "files" array has been passed to the handleFiles method',
-            );
-            return [];
-        }
-
-        const processedFiles = (await this.processRecords({
-            createOrUpdateRawValues: files,
-            tableName: FILE,
-            fieldName: 'id',
-            deleteRawValues: [],
-        }));
-
-        const postFiles = await this.prepareRecords({
-            createRaws: processedFiles.createRaws,
-            updateRaws: processedFiles.updateRaws,
-            transformer: transformFileRecord,
-            tableName: FILE,
-        });
-
-        if (prepareRecordsOnly) {
-            return postFiles;
-        }
-
-        if (postFiles?.length) {
-            await this.batchRecords(postFiles, 'handleFiles');
-        }
-
-        return postFiles;
     };
 
     /**

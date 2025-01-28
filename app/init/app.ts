@@ -1,6 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import {CallsManager} from '@calls/calls_manager';
 import DatabaseManager from '@database/manager';
 import {getAllServerCredentials} from '@init/credentials';
 import {initialLaunch} from '@init/launch';
@@ -12,8 +13,13 @@ import SessionManager from '@managers/session_manager';
 import WebsocketManager from '@managers/websocket_manager';
 import {registerScreens} from '@screens/index';
 import {registerNavigationListeners} from '@screens/navigation';
+import EphemeralStore from '@store/ephemeral_store';
+import NavigationStore from '@store/navigation_store';
 
-let alreadyInitialized = false;
+// Controls whether the main initialization (database, etc...) is done, either on app launch
+// or on the Share Extension, for example.
+let baseAppInitialized = false;
+
 let serverCredentials: ServerCredential[];
 
 // Fallback Polyfill for Promise.allSettle
@@ -31,8 +37,8 @@ Promise.allSettled = Promise.allSettled || (<T>(promises: Array<Promise<T>>) => 
 ));
 
 export async function initialize() {
-    if (!alreadyInitialized) {
-        alreadyInitialized = true;
+    if (!baseAppInitialized) {
+        baseAppInitialized = true;
         serverCredentials = await getAllServerCredentials();
         const serverUrls = serverCredentials.map((credential) => credential.serverUrl);
 
@@ -42,16 +48,24 @@ export async function initialize() {
         GlobalEventHandler.init();
         ManagedApp.init();
         SessionManager.init();
+        CallsManager.initialize();
     }
 }
 
 export async function start() {
+    // Clean relevant information on ephemeral stores
+    NavigationStore.reset();
+    EphemeralStore.setCurrentThreadId('');
+    EphemeralStore.setProcessingNotification('');
+
     await initialize();
 
     PushNotifications.init(serverCredentials.length > 0);
 
     registerNavigationListeners();
     registerScreens();
+
     await WebsocketManager.init(serverCredentials);
+
     initialLaunch();
 }

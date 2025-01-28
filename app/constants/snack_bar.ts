@@ -6,22 +6,33 @@ import keyMirror from '@utils/key_mirror';
 
 export const SNACK_BAR_TYPE = keyMirror({
     ADD_CHANNEL_MEMBERS: null,
+    CODE_COPIED: null,
     FAVORITE_CHANNEL: null,
     FOLLOW_THREAD: null,
+    INFO_COPIED: null,
     LINK_COPIED: null,
+    LINK_COPY_FAILED: null,
     MESSAGE_COPIED: null,
     MUTE_CHANNEL: null,
     REMOVE_CHANNEL_USER: null,
+    TEXT_COPIED: null,
     UNFAVORITE_CHANNEL: null,
     UNMUTE_CHANNEL: null,
     UNFOLLOW_THREAD: null,
 });
+
+export const MESSAGE_TYPE = {
+    SUCCESS: 'success',
+    ERROR: 'error',
+    DEFAULT: 'default',
+};
 
 type SnackBarConfig = {
     id: string;
     defaultMessage: string;
     iconName: string;
     canUndo: boolean;
+    type?: typeof MESSAGE_TYPE[keyof typeof MESSAGE_TYPE];
 };
 
 export const SNACK_BAR_CONFIG: Record<string, SnackBarConfig> = {
@@ -29,6 +40,12 @@ export const SNACK_BAR_CONFIG: Record<string, SnackBarConfig> = {
         id: t('snack.bar.channel.members.added'),
         defaultMessage: '{numMembers, number} {numMembers, plural, one {member} other {members}} added',
         iconName: 'check',
+        canUndo: false,
+    },
+    CODE_COPIED: {
+        id: t('snack.bar.code.copied'),
+        defaultMessage: 'Code copied to clipboard',
+        iconName: 'content-copy',
         canUndo: false,
     },
     FAVORITE_CHANNEL: {
@@ -43,11 +60,25 @@ export const SNACK_BAR_CONFIG: Record<string, SnackBarConfig> = {
         iconName: 'check',
         canUndo: true,
     },
+    INFO_COPIED: {
+        id: t('snack.bar.info.copied'),
+        defaultMessage: 'Info copied to clipboard',
+        iconName: 'content-copy',
+        canUndo: false,
+    },
     LINK_COPIED: {
         id: t('snack.bar.link.copied'),
         defaultMessage: 'Link copied to clipboard',
         iconName: 'link-variant',
         canUndo: false,
+        type: MESSAGE_TYPE.SUCCESS,
+    },
+    LINK_COPY_FAILED: {
+        id: t('gallery.copy_link.failed'),
+        defaultMessage: 'Failed to copy link to clipboard',
+        iconName: 'link-variant',
+        canUndo: false,
+        type: MESSAGE_TYPE.ERROR,
     },
     MESSAGE_COPIED: {
         id: t('snack.bar.message.copied'),
@@ -66,6 +97,13 @@ export const SNACK_BAR_CONFIG: Record<string, SnackBarConfig> = {
         defaultMessage: '1 member was removed from the channel',
         iconName: 'check',
         canUndo: true,
+    },
+    TEXT_COPIED: {
+        id: t('snack.bar.text.copied'),
+        defaultMessage: 'Copied to clipboard',
+        iconName: 'content-copy',
+        canUndo: false,
+        type: MESSAGE_TYPE.SUCCESS,
     },
     UNFAVORITE_CHANNEL: {
         id: t('snack.bar.unfavorite.channel'),

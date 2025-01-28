@@ -4,6 +4,7 @@
 import React from 'react';
 
 import {Preferences, View as ViewConstants} from '@constants';
+import {Ringtone} from '@constants/calls';
 import {renderWithEverything} from '@test/intl-test-helper';
 import TestHelper from '@test/test_helper';
 
@@ -59,8 +60,13 @@ describe('components/integration_selector/selected_option', () => {
                 email: 'true',
                 first_name: 'true',
                 mention_keys: 'false',
+                highlight_keys: '',
                 push: 'mention',
                 push_status: 'ooo',
+                calls_desktop_sound: 'true',
+                calls_mobile_sound: '',
+                calls_notification_sound: Ringtone.Calm,
+                calls_mobile_notification_sound: '',
             },
             email: 'johndoe@me.com',
             auth_service: 'dummy',

@@ -1,7 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {useIntl} from 'react-intl';
 import {Animated, DeviceEventEmitter, InteractionManager, Platform, type StyleProp, Text, View, type ViewStyle} from 'react-native';
 import {RectButton} from 'react-native-gesture-handler';
@@ -59,7 +59,6 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => ({
     badge: {
         left: 18,
         top: -5,
-        borderColor: theme.centerChannelBg,
     },
     button: {
         borderRadius: 8,
@@ -159,6 +158,7 @@ const ServerItem = ({
     const viewRef = useRef<View>(null);
     const [showTutorial, setShowTutorial] = useState(false);
     const [itemBounds, setItemBounds] = useState<TutorialItemBounds>({startX: 0, startY: 0, endX: 0, endY: 0});
+    const tutorialShown = useRef(false);
 
     let displayName = server.displayName;
 
@@ -179,7 +179,7 @@ const ServerItem = ({
         setBadge({isUnread, mentions});
     };
 
-    const logoutServer = async () => {
+    const logoutServer = useCallback(async () => {
         Navigation.updateProps(Screens.HOME, {extra: undefined});
         await logout(server.url);
 
@@ -188,14 +188,14 @@ const ServerItem = ({
         } else {
             DeviceEventEmitter.emit(Events.SWIPEABLE, '');
         }
-    };
+    }, [isActive, server.url]);
 
-    const removeServer = async () => {
+    const removeServer = useCallback(async () => {
         const skipLogoutFromServer = server.lastActiveAt === 0;
         await dismissBottomSheet();
         Navigation.updateProps(Screens.HOME, {extra: undefined});
         await logout(server.url, skipLogoutFromServer, true);
-    };
+    }, [server.lastActiveAt, server.url]);
 
     const startTutorial = () => {
         viewRef.current?.measureInWindow((x, y, w, h) => {
@@ -213,9 +213,24 @@ const ServerItem = ({
     };
 
     const onLayout = useCallback(() => {
-        swipeable.current?.close();
-        startTutorial();
-    }, []);
+        if (highlight && !tutorialWatched) {
+            if (isTablet) {
+                setShowTutorial(true);
+                return;
+            }
+            InteractionManager.runAfterInteractions(() => {
+                setShowTutorial(true);
+            });
+        }
+    }, [highlight, isTablet, tutorialWatched]);
+
+    useLayoutEffect(() => {
+        if (showTutorial && !tutorialShown.current) {
+            swipeable.current?.close();
+            tutorialShown.current = true;
+            startTutorial();
+        }
+    });
 
     const containerStyle = useMemo(() => {
         const style: StyleProp<ViewStyle> = [styles.container];
@@ -224,7 +239,7 @@ const ServerItem = ({
         }
 
         return style;
-    }, [isActive]);
+    }, [isActive, styles.active, styles.container]);
 
     const serverStyle = useMemo(() => {
         const style: StyleProp<ViewStyle> = [styles.row];
@@ -233,7 +248,7 @@ const ServerItem = ({
         }
 
         return style;
-    }, [server.lastActiveAt]);
+    }, [server.lastActiveAt, styles.offline, styles.row]);
 
     const handleLogin = useCallback(async () => {
         swipeable.current?.close();
@@ -260,7 +275,7 @@ const ServerItem = ({
 
         canReceiveNotifications(server.url, result.canReceiveNotifications as string, intl);
         loginToServer(theme, server.url, displayName, data.config!, data.license!);
-    }, [server, theme, intl]);
+    }, [server.url, intl, theme, displayName]);
 
     const handleDismissTutorial = useCallback(() => {
         swipeable.current?.close();
@@ -271,15 +286,15 @@ const ServerItem = ({
     const handleEdit = useCallback(() => {
         DeviceEventEmitter.emit(Events.SWIPEABLE, '');
         editServer(theme, server);
-    }, [server]);
+    }, [server, theme]);
 
     const handleLogout = useCallback(async () => {
         alertServerLogout(server.displayName, logoutServer, intl);
-    }, [isActive, intl, server]);
+    }, [server.displayName, logoutServer, intl]);
 
     const handleRemove = useCallback(() => {
         alertServerRemove(server.displayName, removeServer, intl);
-    }, [isActive, server, intl]);
+    }, [server.displayName, removeServer, intl]);
 
     const handleShowTutorial = useCallback(() => {
         swipeable.current?.openRight();
@@ -296,12 +311,12 @@ const ServerItem = ({
             await dismissBottomSheet();
             Navigation.updateProps(Screens.HOME, {extra: undefined});
             DatabaseManager.setActiveServerDatabase(server.url);
-            WebsocketManager.initializeClient(server.url);
+            WebsocketManager.initializeClient(server.url, 'Server Switch');
             return;
         }
 
         handleLogin();
-    }, [server, isActive, theme, intl]);
+    }, [isActive, server.lastActiveAt, server.url, handleLogin]);
 
     const onSwipeableWillOpen = useCallback(() => {
         DeviceEventEmitter.emit(Events.SWIPEABLE, server.url);
@@ -347,18 +362,6 @@ const ServerItem = ({
         };
     }, [server.lastActiveAt, isActive]);
 
-    useEffect(() => {
-        if (highlight && !tutorialWatched) {
-            if (isTablet) {
-                setShowTutorial(true);
-                return;
-            }
-            InteractionManager.runAfterInteractions(() => {
-                setShowTutorial(true);
-            });
-        }
-    }, [highlight, tutorialWatched, isTablet]);
-
     const serverItem = `server_list.server_item.${server.displayName.replace(/ /g, '_').toLocaleLowerCase()}`;
     const serverItemTestId = isActive ? `${serverItem}.active` : `${serverItem}.inactive`;
 
@@ -390,6 +393,7 @@ const ServerItem = ({
                     style={containerStyle}
                     ref={viewRef}
                     testID={serverItemTestId}
+                    onLayout={onLayout}
                 >
                     <RectButton
                         onPress={onServerPressed}
@@ -399,9 +403,9 @@ const ServerItem = ({
                         <View style={serverStyle}>
                             {!switching &&
                             <ServerIcon
-                                badgeBackgroundColor={theme.mentionColor}
-                                badgeBorderColor={theme.mentionBg}
-                                badgeColor={theme.mentionBg}
+                                badgeBackgroundColor={theme.buttonBg}
+                                badgeBorderColor={theme.centerChannelBg}
+                                badgeColor={theme.buttonColor}
                                 badgeStyle={styles.badge}
                                 iconColor={changeOpacity(theme.centerChannelColor, 0.56)}
                                 hasUnreads={badge.isUnread}
@@ -474,13 +478,14 @@ const ServerItem = ({
                 itemBounds={itemBounds}
                 onDismiss={handleDismissTutorial}
                 onShow={handleShowTutorial}
-                onLayout={onLayout}
                 itemBorderRadius={8}
             >
+                {Boolean(itemBounds.endX) &&
                 <TutorialSwipeLeft
                     message={intl.formatMessage({id: 'server.tutorial.swipe', defaultMessage: 'Swipe left on a server to see more actions'})}
                     style={isTablet ? styles.tutorialTablet : styles.tutorial}
                 />
+                }
             </TutorialHighlight>
             }
         </>

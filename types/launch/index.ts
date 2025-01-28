@@ -8,6 +8,10 @@ export interface DeepLink {
     teamName: string;
 }
 
+export interface DeepLinkServer {
+    serverUrl: string;
+}
+
 export interface DeepLinkChannel extends DeepLink {
     channelName: string;
 }
@@ -21,11 +25,12 @@ export interface DeepLinkPermalink extends DeepLink {
 }
 
 export interface DeepLinkGM extends DeepLink {
-    channelId: string;
+    channelName: string;
 }
 
 export interface DeepLinkPlugin extends DeepLink {
     id: string;
+    route?: string;
 }
 
 export type DeepLinkType = typeof DeepLink[keyof typeof DeepLink];
@@ -33,7 +38,7 @@ export type DeepLinkType = typeof DeepLink[keyof typeof DeepLink];
 export interface DeepLinkWithData {
     type: DeepLinkType;
     url: string;
-    data?: DeepLinkChannel | DeepLinkDM | DeepLinkGM | DeepLinkPermalink | DeepLinkPlugin;
+    data?: DeepLinkChannel | DeepLinkDM | DeepLinkGM | DeepLinkPermalink | DeepLinkPlugin | DeepLinkServer;
 }
 
 export type LaunchType = typeof Launch[keyof typeof Launch];

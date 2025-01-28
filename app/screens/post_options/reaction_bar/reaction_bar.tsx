@@ -5,7 +5,7 @@ import React, {useCallback} from 'react';
 import {useIntl} from 'react-intl';
 import {useWindowDimensions, View} from 'react-native';
 
-import {addReaction} from '@actions/remote/reactions';
+import {toggleReaction} from '@actions/remote/reactions';
 import {Screens} from '@constants';
 import {
     LARGE_CONTAINER_SIZE,
@@ -57,7 +57,7 @@ const ReactionBar = ({bottomSheetId, recentEmojis = [], postId}: QuickReactionPr
 
     const handleEmojiPress = useCallback(async (emoji: string) => {
         await dismissBottomSheet(bottomSheetId);
-        addReaction(serverUrl, postId, emoji);
+        toggleReaction(serverUrl, postId, emoji);
     }, [bottomSheetId, postId, serverUrl]);
 
     const openEmojiPicker = useCallback(async () => {
@@ -69,7 +69,7 @@ const ReactionBar = ({bottomSheetId, recentEmojis = [], postId}: QuickReactionPr
             title: intl.formatMessage({id: 'mobile.post_info.add_reaction', defaultMessage: 'Add Reaction'}),
             props: {onEmojiPress: handleEmojiPress},
         });
-    }, [handleEmojiPress, intl, theme]);
+    }, [bottomSheetId, handleEmojiPress, intl, theme]);
 
     let containerSize = LARGE_CONTAINER_SIZE;
     let iconSize = LARGE_ICON_SIZE;

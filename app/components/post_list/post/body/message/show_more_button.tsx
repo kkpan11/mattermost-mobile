@@ -1,9 +1,9 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import {LinearGradient, type LinearGradientProps} from 'expo-linear-gradient';
 import React from 'react';
 import {TouchableOpacity, View} from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
 
 import CompassIcon from '@components/compass_icon';
 import {changeOpacity, makeStyleSheetFromTheme} from '@utils/theme';
@@ -74,7 +74,7 @@ const ShowMoreButton = ({highlight, onPress, showMore = true, theme}: ShowMoreBu
         iconName = 'chevron-up';
     }
 
-    let gradientColors = [
+    let gradientColors: LinearGradientProps['colors'] = [
         changeOpacity(theme.centerChannelBg, 0),
         changeOpacity(theme.centerChannelBg, 0.75),
         theme.centerChannelBg,

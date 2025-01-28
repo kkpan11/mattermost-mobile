@@ -1,43 +1,49 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import RNUtils from '@mattermost/rnutils';
+import React, {useCallback, useEffect, useState} from 'react';
 import {type LayoutChangeEvent, StyleSheet, View} from 'react-native';
+import {Navigation} from 'react-native-navigation';
 import {type Edge, SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 
+import {storeLastViewedChannelIdAndServer, removeLastViewedChannelIdAndServer} from '@actions/app/global';
 import FloatingCallContainer from '@calls/components/floating_call_container';
-import {RoundedHeaderCalls} from '@calls/components/join_call_banner/rounded_header_calls';
 import FreezeScreen from '@components/freeze_screen';
 import PostDraft from '@components/post_draft';
-import {Screens} from '@constants';
-import {ACCESSORIES_CONTAINER_NATIVE_ID} from '@constants/post_draft';
+import {ExtraKeyboardProvider} from '@context/extra_keyboard';
 import useAndroidHardwareBackHandler from '@hooks/android_back_handler';
 import {useChannelSwitch} from '@hooks/channel_switch';
 import {useIsTablet} from '@hooks/device';
 import {useDefaultHeaderHeight} from '@hooks/header';
-import {useKeyboardTrackingPaused} from '@hooks/keyboard_tracking';
 import {useTeamSwitch} from '@hooks/team_switch';
 import {popTopScreen} from '@screens/navigation';
 import EphemeralStore from '@store/ephemeral_store';
 
 import ChannelPostList from './channel_post_list';
 import ChannelHeader from './header';
+import useGMasDMNotice from './use_gm_as_dm_notice';
 
+import type PreferenceModel from '@typings/database/models/servers/preference';
 import type {AvailableScreens} from '@typings/screens/navigation';
-import type {KeyboardTrackingViewRef} from 'react-native-keyboard-tracking-view';
 
 type ChannelProps = {
     channelId: string;
     componentId?: AvailableScreens;
-    isCallInCurrentChannel: boolean;
+    showJoinCallBanner: boolean;
     isInACall: boolean;
-    isInCurrentChannelCall: boolean;
     isCallsEnabledInChannel: boolean;
+    groupCallsAllowed: boolean;
+    showIncomingCalls: boolean;
     isTabletView?: boolean;
+    dismissedGMasDMNotice: PreferenceModel[];
+    currentUserId: string;
+    channelType: ChannelType;
+    hasGMasDMFeature: boolean;
+    includeBookmarkBar?: boolean;
 };
 
 const edges: Edge[] = ['left', 'right'];
-const trackKeyboardForScreens = [Screens.HOME, Screens.CHANNEL];
 
 const styles = StyleSheet.create({
     flex: {
@@ -48,27 +54,46 @@ const styles = StyleSheet.create({
 const Channel = ({
     channelId,
     componentId,
-    isCallInCurrentChannel,
+    showJoinCallBanner,
     isInACall,
-    isInCurrentChannelCall,
     isCallsEnabledInChannel,
+    groupCallsAllowed,
+    showIncomingCalls,
     isTabletView,
+    dismissedGMasDMNotice,
+    channelType,
+    currentUserId,
+    hasGMasDMFeature,
+    includeBookmarkBar,
 }: ChannelProps) => {
+    useGMasDMNotice(currentUserId, channelType, dismissedGMasDMNotice, hasGMasDMFeature);
     const isTablet = useIsTablet();
     const insets = useSafeAreaInsets();
     const [shouldRenderPosts, setShouldRenderPosts] = useState(false);
     const switchingTeam = useTeamSwitch();
     const switchingChannels = useChannelSwitch();
     const defaultHeight = useDefaultHeaderHeight();
-    const postDraftRef = useRef<KeyboardTrackingViewRef>(null);
     const [containerHeight, setContainerHeight] = useState(0);
     const shouldRender = !switchingTeam && !switchingChannels && shouldRenderPosts && Boolean(channelId);
-    const handleBack = () => {
+    const handleBack = useCallback(() => {
         popTopScreen(componentId);
-    };
+    }, [componentId]);
 
-    useKeyboardTrackingPaused(postDraftRef, channelId, trackKeyboardForScreens);
     useAndroidHardwareBackHandler(componentId, handleBack);
+
+    useEffect(() => {
+        const listener = {
+            componentDidAppear: () => {
+                RNUtils.setSoftKeyboardToAdjustNothing();
+            },
+            componentDidDisappear: () => {
+                RNUtils.setSoftKeyboardToAdjustResize();
+            },
+        };
+        const unsubscribe = Navigation.events().registerComponentListener(listener, componentId!);
+
+        return () => unsubscribe.remove();
+    }, []);
 
     const marginTop = defaultHeight + (isTablet ? 0 : -insets.top);
     useEffect(() => {
@@ -83,9 +108,12 @@ const Channel = ({
             EphemeralStore.removeSwitchingToChannel(channelId);
         }, 500);
 
+        storeLastViewedChannelIdAndServer(channelId);
+
         return () => {
             cancelAnimationFrame(raf);
             clearTimeout(t);
+            removeLastViewedChannelIdAndServer();
             EphemeralStore.removeSwitchingToChannel(channelId);
         };
     }, [channelId]);
@@ -94,8 +122,7 @@ const Channel = ({
         setContainerHeight(e.nativeEvent.layout.height);
     }, []);
 
-    const showJoinCallBanner = isCallInCurrentChannel && !isInCurrentChannelCall;
-    const renderCallsComponents = showJoinCallBanner || isInACall;
+    const showFloatingCallContainer = showJoinCallBanner || isInACall || showIncomingCalls;
 
     return (
         <FreezeScreen>
@@ -110,36 +137,34 @@ const Channel = ({
                     channelId={channelId}
                     componentId={componentId}
                     callsEnabledInChannel={isCallsEnabledInChannel}
+                    groupCallsAllowed={groupCallsAllowed}
                     isTabletView={isTabletView}
+                    shouldRenderBookmarks={shouldRender}
                 />
-                {showJoinCallBanner && <RoundedHeaderCalls/>}
                 {shouldRender &&
-                <>
+                <ExtraKeyboardProvider>
                     <View style={[styles.flex, {marginTop}]}>
                         <ChannelPostList
                             channelId={channelId}
                             nativeID={channelId}
-                            currentCallBarVisible={isInACall}
-                            joinCallBannerVisible={showJoinCallBanner}
                         />
                     </View>
                     <PostDraft
                         channelId={channelId}
-                        keyboardTracker={postDraftRef}
-                        scrollViewNativeID={channelId}
-                        accessoriesContainerID={ACCESSORIES_CONTAINER_NATIVE_ID}
                         testID='channel.post_draft'
                         containerHeight={containerHeight}
                         isChannelScreen={true}
                         canShowPostPriority={true}
                     />
-                </>
+                </ExtraKeyboardProvider>
                 }
-                {renderCallsComponents &&
+                {showFloatingCallContainer && shouldRender &&
                     <FloatingCallContainer
                         channelId={channelId}
                         showJoinCallBanner={showJoinCallBanner}
+                        showIncomingCalls={showIncomingCalls}
                         isInACall={isInACall}
+                        includeBookmarkBar={includeBookmarkBar}
                     />
                 }
             </SafeAreaView>

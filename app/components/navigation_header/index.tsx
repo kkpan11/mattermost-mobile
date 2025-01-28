@@ -24,7 +24,7 @@ type Props = SearchProps & {
     onTitlePress?: () => void;
     rightButtons?: HeaderRightButton[];
     scrollValue?: Animated.SharedValue<number>;
-    lockValue?: Animated.SharedValue<number | null>;
+    lockValue?: number;
     hideHeader?: () => void;
     showBackButton?: boolean;
     subtitle?: string;
@@ -61,65 +61,58 @@ const NavigationHeader = forwardRef<SearchRef, Props>(({
     const styles = getStyleSheet(theme);
 
     const {largeHeight, defaultHeight, headerOffset} = useHeaderHeight();
-    const containerHeight = useAnimatedStyle(() => {
-        const minHeight = defaultHeight;
-        const value = -(scrollValue?.value || 0);
-        const calculatedHeight = (isLargeTitle ? largeHeight : defaultHeight) + value;
-        const height = lockValue?.value ? lockValue.value : calculatedHeight;
-        return {
-            height: Math.max(height, minHeight),
-            minHeight,
-            maxHeight: largeHeight + MAX_OVERSCROLL,
-        };
-    });
 
     const minScrollValue = useDerivedValue(() => scrollValue?.value || 0, [scrollValue]);
 
+    const containerHeight = useAnimatedStyle(() => {
+        const calculatedHeight = (isLargeTitle ? largeHeight : defaultHeight) - minScrollValue.value;
+        const height = lockValue || calculatedHeight;
+        return {
+            height: Math.max(height, defaultHeight),
+            minHeight: defaultHeight,
+            maxHeight: largeHeight + MAX_OVERSCROLL,
+        };
+    }, [defaultHeight, largeHeight, lockValue, isLargeTitle]);
+
     const translateY = useDerivedValue(() => (
-        lockValue?.value ? -lockValue.value : Math.min(-minScrollValue.value, headerOffset)
-    ), [lockValue, minScrollValue, headerOffset]);
+        lockValue ? -lockValue : Math.min(-minScrollValue.value, headerOffset)
+    ), [lockValue, headerOffset]);
 
     const searchTopStyle = useAnimatedStyle(() => {
         const margin = clamp(-minScrollValue.value, -headerOffset, headerOffset);
-        const marginTop = (lockValue?.value ? -lockValue?.value : margin) - SEARCH_INPUT_HEIGHT - SEARCH_INPUT_MARGIN;
+        const marginTop = (lockValue ? -lockValue : margin) - SEARCH_INPUT_HEIGHT - SEARCH_INPUT_MARGIN;
         return {marginTop};
-    }, [lockValue, headerOffset, scrollValue]);
-
-    const heightOffset = useDerivedValue(() => (
-        lockValue?.value ? lockValue.value : headerOffset
-    ), [lockValue, headerOffset]);
+    }, [lockValue, headerOffset]);
 
     return (
-        <>
-            <Animated.View style={[styles.container, containerHeight]}>
-                <Header
-                    defaultHeight={defaultHeight}
-                    hasSearch={hasSearch}
-                    isLargeTitle={isLargeTitle}
-                    heightOffset={heightOffset.value}
-                    leftComponent={leftComponent}
-                    onBackPress={onBackPress}
-                    onTitlePress={onTitlePress}
-                    rightButtons={rightButtons}
-                    lockValue={lockValue}
-                    scrollValue={scrollValue}
-                    showBackButton={showBackButton}
-                    subtitle={subtitle}
-                    subtitleCompanion={subtitleCompanion}
-                    theme={theme}
-                    title={title}
-                />
-                {isLargeTitle &&
+        <Animated.View style={[styles.container, containerHeight]}>
+            <Header
+                defaultHeight={defaultHeight}
+                hasSearch={hasSearch}
+                isLargeTitle={isLargeTitle}
+                heightOffset={lockValue || headerOffset}
+                leftComponent={leftComponent}
+                onBackPress={onBackPress}
+                onTitlePress={onTitlePress}
+                rightButtons={rightButtons}
+                scrollValue={scrollValue}
+                showBackButton={showBackButton}
+                subtitle={subtitle}
+                subtitleCompanion={subtitleCompanion}
+                theme={theme}
+                title={title}
+            />
+            {isLargeTitle &&
                 <NavigationHeaderLargeTitle
-                    heightOffset={heightOffset.value}
+                    heightOffset={lockValue || headerOffset}
                     hasSearch={hasSearch}
                     subtitle={subtitle}
                     theme={theme}
                     title={title}
                     translateY={translateY}
                 />
-                }
-                {hasSearch &&
+            }
+            {hasSearch &&
                 <NavigationSearch
                     {...searchProps}
                     hideHeader={hideHeader}
@@ -127,9 +120,8 @@ const NavigationHeader = forwardRef<SearchRef, Props>(({
                     topStyle={searchTopStyle}
                     ref={ref}
                 />
-                }
-            </Animated.View>
-        </>
+            }
+        </Animated.View>
     );
 });
 

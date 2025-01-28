@@ -1,14 +1,16 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import {Image} from 'expo-image';
+import {LinearGradient, type LinearGradientProps} from 'expo-linear-gradient';
 import React, {useMemo} from 'react';
 import {StyleSheet, useWindowDimensions, View} from 'react-native';
-import FastImage from 'react-native-fast-image';
-import LinearGradient from 'react-native-linear-gradient';
 
 import CompassIcon from '@components/compass_icon';
 import {imageDimensions} from '@share/utils';
 import {changeOpacity, makeStyleSheetFromTheme} from '@utils/theme';
+
+import type {SharedItem} from '@mattermost/rnshare';
 
 type Props = {
     contentMode: 'small' | 'large';
@@ -18,9 +20,9 @@ type Props = {
     type?: 'image' | 'video';
 }
 
-const GRADIENT_COLORS = ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, .16)'];
+const GRADIENT_COLORS: LinearGradientProps['colors'] = ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, .16)'];
 const GRADIENT_END = {x: 1, y: 1};
-const GRADIENT_LOCATIONS = [0.5, 1];
+const GRADIENT_LOCATIONS: LinearGradientProps['locations'] = [0.5, 1];
 const GRADIENT_START = {x: 0.3, y: 0.3};
 
 const getStyles = makeStyleSheetFromTheme((theme: Theme) => ({
@@ -79,17 +81,17 @@ const Thumbnail = ({contentMode, file, hasError, theme, type}: Props) => {
         styles.container,
         hasError && styles.error,
         styles.radius,
-    ]), [styles, imgStyle, hasError]);
+    ]), [styles, hasError]);
 
     const source = useMemo(() => ({uri: type === 'video' ? file.videoThumb : file.value}), [type, file]);
 
     return (
         <View style={containerStyle}>
             <View style={styles.center}>
-                <FastImage
+                <Image
                     source={source}
                     style={[imgStyle, styles.radius]}
-                    resizeMode='cover'
+                    contentFit='cover'
                 />
                 {type === 'video' &&
                 <>

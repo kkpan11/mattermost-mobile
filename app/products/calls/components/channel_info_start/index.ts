@@ -1,13 +1,12 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import {withDatabase} from '@nozbe/watermelondb/DatabaseProvider';
-import withObservables from '@nozbe/with-observables';
+import {withDatabase, withObservables} from '@nozbe/watermelondb/react';
 import {of as of$} from 'rxjs';
 import {distinctUntilChanged, switchMap} from 'rxjs/operators';
 
 import ChannelInfoStartButton from '@calls/components/channel_info_start/channel_info_start_button';
-import {observeIsCallLimitRestricted} from '@calls/observers';
+import {observeEndCallDetails, observeIsCallLimitRestricted} from '@calls/observers';
 import {observeChannelsWithCalls, observeCurrentCall} from '@calls/state';
 
 import type {WithDatabaseArgs} from '@typings/database/database';
@@ -34,6 +33,7 @@ const enhanced = withObservables([], ({serverUrl, channelId, database}: EnhanceP
         confirmToJoin,
         alreadyInCall,
         limitRestrictedInfo: observeIsCallLimitRestricted(database, serverUrl, channelId),
+        ...observeEndCallDetails(),
     };
 });
 

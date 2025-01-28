@@ -1,8 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import {withDatabase} from '@nozbe/watermelondb/DatabaseProvider';
-import withObservables from '@nozbe/with-observables';
+import {withDatabase, withObservables} from '@nozbe/watermelondb/react';
 import React, {useCallback, useEffect, useState} from 'react';
 import {type IntlShape, useIntl} from 'react-intl';
 import {Text, View} from 'react-native';
@@ -20,6 +19,7 @@ import {getUserById, observeTeammateNameDisplay} from '@queries/servers/user';
 import {goToScreen} from '@screens/navigation';
 import {preventDoubleTap} from '@utils/tap';
 import {changeOpacity, makeStyleSheetFromTheme} from '@utils/theme';
+import {secureGetFromRecord} from '@utils/types';
 import {displayUsername} from '@utils/user';
 
 import type {WithDatabaseArgs} from '@typings/database/database';
@@ -94,7 +94,7 @@ async function getItemName(serverUrl: string, selected: string, teammateNameDisp
         return '';
     }
 
-    const database = DatabaseManager.serverDatabases[serverUrl]?.database;
+    const database = secureGetFromRecord(DatabaseManager.serverDatabases, serverUrl)?.database;
 
     switch (dataSource) {
         case ViewConstants.DATA_SOURCE_USERS: {

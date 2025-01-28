@@ -4,11 +4,20 @@
 import {DeviceEventEmitter} from 'react-native';
 
 import {fetchUsersByIds} from '@actions/remote/user';
+import {leaveCall, muteMyself, unraiseHand} from '@calls/actions';
+import {createCallAndAddToIds} from '@calls/actions/calls';
+import {hostRemovedErr} from '@calls/errors';
 import {
     callEnded,
     callStarted,
+    getCallsConfig,
+    getCurrentCall,
+    receivedCaption,
+    removeIncomingCall,
+    setCallForChannel,
     setCallScreenOff,
     setCallScreenOn,
+    setCaptioningState,
     setChannelEnabled,
     setHost,
     setRaisedHand,
@@ -19,59 +28,99 @@ import {
     userLeftCall,
     userReacted,
 } from '@calls/state';
+import {isMultiSessionSupported} from '@calls/utils';
 import {WebsocketEvents} from '@constants';
+import Calls from '@constants/calls';
 import DatabaseManager from '@database/manager';
+import {getCurrentUserId} from '@queries/servers/system';
 
+import type {CallRecordingStateData, HostControlsLowerHandMsgData, HostControlsMsgData} from '@calls/types/calls';
 import type {
-    CallHostChangedData, CallRecordingStateData,
+    CallHostChangedData,
+    CallJobState,
+    CallJobStateData,
     CallStartData,
+    CallState,
+    CallStateData,
     EmptyData,
+    LiveCaptionData,
     UserConnectedData,
-    UserDisconnectedData, UserMutedUnmutedData, UserRaiseUnraiseHandData,
-    UserReactionData, UserScreenOnOffData, UserVoiceOnOffData,
+    UserDisconnectedData,
+    UserDismissedNotification,
+    UserJoinedData,
+    UserLeftData,
+    UserMutedUnmutedData,
+    UserRaiseUnraiseHandData,
+    UserReactionData,
+    UserScreenOnOffData,
+    UserVoiceOnOffData,
 } from '@mattermost/calls/lib/types';
 
+// DEPRECATED in favour of user_joined (since v0.21.0)
 export const handleCallUserConnected = (serverUrl: string, msg: WebSocketMessage<UserConnectedData>) => {
-    // Load user model async (if needed).
-    fetchUsersByIds(serverUrl, [msg.data.userID]);
-
-    userJoinedCall(serverUrl, msg.broadcast.channel_id, msg.data.userID);
-};
-
-export const handleCallUserDisconnected = (serverUrl: string, msg: WebSocketMessage<UserDisconnectedData>) => {
-    userLeftCall(serverUrl, msg.broadcast.channel_id, msg.data.userID);
-};
-
-export const handleCallUserMuted = (serverUrl: string, msg: WebSocketMessage<UserMutedUnmutedData>) => {
-    setUserMuted(serverUrl, msg.broadcast.channel_id, msg.data.userID, true);
-};
-
-export const handleCallUserUnmuted = (serverUrl: string, msg: WebSocketMessage<UserMutedUnmutedData>) => {
-    setUserMuted(serverUrl, msg.broadcast.channel_id, msg.data.userID, false);
-};
-
-export const handleCallUserVoiceOn = (msg: WebSocketMessage<UserVoiceOnOffData>) => {
-    setUserVoiceOn(msg.broadcast.channel_id, msg.data.userID, true);
-};
-
-export const handleCallUserVoiceOff = (msg: WebSocketMessage<UserVoiceOnOffData>) => {
-    setUserVoiceOn(msg.broadcast.channel_id, msg.data.userID, false);
-};
-
-export const handleCallStarted = (serverUrl: string, msg: WebSocketMessage<CallStartData>) => {
-    const database = DatabaseManager.serverDatabases[serverUrl]?.database;
-    if (!database) {
+    if (isMultiSessionSupported(getCallsConfig(serverUrl).version)) {
         return;
     }
 
+    // Load user model async (if needed).
+    fetchUsersByIds(serverUrl, [msg.data.userID]);
+
+    // Pre v0.21.0, sessionID == userID
+    userJoinedCall(serverUrl, msg.broadcast.channel_id, msg.data.userID, msg.data.userID);
+};
+
+// DEPRECATED in favour of user_left (since v0.21.0)
+export const handleCallUserDisconnected = (serverUrl: string, msg: WebSocketMessage<UserDisconnectedData>) => {
+    if (isMultiSessionSupported(getCallsConfig(serverUrl).version)) {
+        return;
+    }
+
+    // pre v0.21.0, sessionID == userID
+    userLeftCall(serverUrl, msg.broadcast.channel_id, msg.data.userID);
+};
+
+export const handleCallUserJoined = (serverUrl: string, msg: WebSocketMessage<UserJoinedData>) => {
+    // Load user model async (if needed).
+    fetchUsersByIds(serverUrl, [msg.data.user_id]);
+
+    userJoinedCall(serverUrl, msg.broadcast.channel_id, msg.data.user_id, msg.data.session_id);
+};
+
+export const handleCallUserLeft = (serverUrl: string, msg: WebSocketMessage<UserLeftData>) => {
+    userLeftCall(serverUrl, msg.broadcast.channel_id, msg.data.session_id);
+};
+
+export const handleCallUserMuted = (serverUrl: string, msg: WebSocketMessage<UserMutedUnmutedData>) => {
+    // pre v0.21.0, sessionID == userID
+    setUserMuted(serverUrl, msg.broadcast.channel_id, msg.data.session_id || msg.data.userID, true);
+};
+
+export const handleCallUserUnmuted = (serverUrl: string, msg: WebSocketMessage<UserMutedUnmutedData>) => {
+    // pre v0.21.0, sessionID == userID
+    setUserMuted(serverUrl, msg.broadcast.channel_id, msg.data.session_id || msg.data.userID, false);
+};
+
+export const handleCallUserVoiceOn = (msg: WebSocketMessage<UserVoiceOnOffData>) => {
+    // pre v0.21.0, sessionID == userID
+    setUserVoiceOn(msg.broadcast.channel_id, msg.data.session_id || msg.data.userID, true);
+};
+
+export const handleCallUserVoiceOff = (msg: WebSocketMessage<UserVoiceOnOffData>) => {
+    // pre v0.21.0, sessionID == userID
+    setUserVoiceOn(msg.broadcast.channel_id, msg.data.session_id || msg.data.userID, false);
+};
+
+export const handleCallStarted = (serverUrl: string, msg: WebSocketMessage<CallStartData>) => {
     callStarted(serverUrl, {
+        id: msg.data.id,
         channelId: msg.data.channelID,
         startTime: msg.data.start_at,
         threadId: msg.data.thread_id,
         screenOn: '',
-        participants: {},
+        sessions: {},
         ownerId: msg.data.owner_id,
         hostId: msg.data.host_id,
+        dismissed: {},
     });
 };
 
@@ -92,29 +141,122 @@ export const handleCallChannelDisabled = (serverUrl: string, msg: WebSocketMessa
 };
 
 export const handleCallScreenOn = (serverUrl: string, msg: WebSocketMessage<UserScreenOnOffData>) => {
-    setCallScreenOn(serverUrl, msg.broadcast.channel_id, msg.data.userID);
+    // pre v0.21.0, sessionID == userID
+    setCallScreenOn(serverUrl, msg.broadcast.channel_id, msg.data.session_id || msg.data.userID);
 };
 
 export const handleCallScreenOff = (serverUrl: string, msg: WebSocketMessage<UserScreenOnOffData>) => {
-    setCallScreenOff(serverUrl, msg.broadcast.channel_id);
+    // pre v0.21.0, sessionID == userID
+    setCallScreenOff(serverUrl, msg.broadcast.channel_id, msg.data.session_id || msg.data.userID);
 };
 
 export const handleCallUserRaiseHand = (serverUrl: string, msg: WebSocketMessage<UserRaiseUnraiseHandData>) => {
-    setRaisedHand(serverUrl, msg.broadcast.channel_id, msg.data.userID, msg.data.raised_hand);
+    // pre v0.21.0, sessionID == userID
+    setRaisedHand(serverUrl, msg.broadcast.channel_id, msg.data.session_id || msg.data.userID, msg.data.raised_hand);
 };
 
 export const handleCallUserUnraiseHand = (serverUrl: string, msg: WebSocketMessage<UserRaiseUnraiseHandData>) => {
-    setRaisedHand(serverUrl, msg.broadcast.channel_id, msg.data.userID, msg.data.raised_hand);
+    // pre v0.21.0, sessionID == userID
+    setRaisedHand(serverUrl, msg.broadcast.channel_id, msg.data.session_id || msg.data.userID, msg.data.raised_hand);
 };
 
 export const handleCallUserReacted = (serverUrl: string, msg: WebSocketMessage<UserReactionData>) => {
+    // pre v0.21.0, sessionID == userID
+    if (!isMultiSessionSupported(getCallsConfig(serverUrl).version)) {
+        msg.data.session_id = msg.data.user_id;
+    }
+
     userReacted(serverUrl, msg.broadcast.channel_id, msg.data);
 };
 
+// DEPRECATED in favour of handleCallJobState (since v2.15.0)
 export const handleCallRecordingState = (serverUrl: string, msg: WebSocketMessage<CallRecordingStateData>) => {
-    setRecordingState(serverUrl, msg.broadcast.channel_id, msg.data.recState);
+    const jobState: CallJobState = {
+        type: Calls.JOB_TYPE_RECORDING,
+        ...msg.data.recState,
+    };
+    setRecordingState(serverUrl, msg.broadcast.channel_id, jobState);
+};
+
+export const handleCallJobState = (serverUrl: string, msg: WebSocketMessage<CallJobStateData>) => {
+    switch (msg.data.jobState.type) {
+        case Calls.JOB_TYPE_RECORDING:
+            setRecordingState(serverUrl, msg.broadcast.channel_id, msg.data.jobState);
+            break;
+        case Calls.JOB_TYPE_CAPTIONING:
+            setCaptioningState(serverUrl, msg.broadcast.channel_id, msg.data.jobState);
+            break;
+    }
 };
 
 export const handleCallHostChanged = (serverUrl: string, msg: WebSocketMessage<CallHostChangedData>) => {
     setHost(serverUrl, msg.broadcast.channel_id, msg.data.hostID);
 };
+
+export const handleUserDismissedNotification = async (serverUrl: string, msg: WebSocketMessage<UserDismissedNotification>) => {
+    const database = DatabaseManager.serverDatabases[serverUrl]?.database;
+    if (!database) {
+        return;
+    }
+
+    // For now we are only handling our own dismissed.
+    const myUserId = await getCurrentUserId(database);
+    if (myUserId !== msg.data.userID) {
+        return;
+    }
+
+    removeIncomingCall(serverUrl, msg.data.callID);
+};
+
+export const handleCallCaption = (serverUrl: string, msg: WebSocketMessage<LiveCaptionData>) => {
+    receivedCaption(serverUrl, msg.data);
+};
+
+export const handleHostMute = async (serverUrl: string, msg: WebSocketMessage<HostControlsMsgData>) => {
+    const currentCall = getCurrentCall();
+    if (currentCall?.serverUrl !== serverUrl ||
+        currentCall?.channelId !== msg.data.channel_id ||
+        currentCall?.mySessionId !== msg.data.session_id) {
+        return;
+    }
+
+    muteMyself();
+};
+
+export const handleHostLowerHand = async (serverUrl: string, msg: WebSocketMessage<HostControlsLowerHandMsgData>) => {
+    const currentCall = getCurrentCall();
+    if (currentCall?.serverUrl !== serverUrl ||
+        currentCall?.channelId !== msg.data.channel_id ||
+        currentCall?.mySessionId !== msg.data.session_id) {
+        return;
+    }
+
+    unraiseHand();
+};
+
+export const handleHostRemoved = async (serverUrl: string, msg: WebSocketMessage<HostControlsMsgData>) => {
+    const currentCall = getCurrentCall();
+    if (currentCall?.serverUrl !== serverUrl ||
+        currentCall?.channelId !== msg.data.channel_id ||
+        currentCall?.mySessionId !== msg.data.session_id) {
+        return;
+    }
+
+    leaveCall(hostRemovedErr);
+};
+
+export const handleCallState = (serverUrl: string, msg: WebSocketMessage<CallStateData>) => {
+    const callState: CallState = JSON.parse(msg.data.call);
+    const call = createCallAndAddToIds(msg.data.channel_id, callState);
+
+    setCallForChannel(serverUrl, msg.data.channel_id, call);
+
+    if (callState.recording) {
+        setRecordingState(serverUrl, msg.data.channel_id, callState.recording);
+    }
+
+    if (callState.live_captions) {
+        setCaptioningState(serverUrl, msg.data.channel_id, callState.live_captions);
+    }
+};
+

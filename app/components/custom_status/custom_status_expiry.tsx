@@ -1,15 +1,14 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import {withDatabase} from '@nozbe/watermelondb/DatabaseProvider';
-import withObservables from '@nozbe/with-observables';
+import {withDatabase, withObservables} from '@nozbe/watermelondb/react';
 import moment, {type Moment} from 'moment-timezone';
 import React from 'react';
 import {Text, type TextStyle} from 'react-native';
 import {of as of$} from 'rxjs';
 import {switchMap} from 'rxjs/operators';
 
-import FormattedDate from '@components/formatted_date';
+import FormattedDate, {type FormattedDateFormat} from '@components/formatted_date';
 import FormattedText from '@components/formatted_text';
 import FormattedTime from '@components/formatted_time';
 import {getDisplayNamePreferenceAsBool} from '@helpers/api/preference';
@@ -44,6 +43,12 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
     };
 });
 
+const DATE_FORMATS = {
+    withinWeek: {weekday: 'long'},
+    withinYear: {month: 'short', day: 'numeric'},
+    afterYear: {dateStyle: 'medium'},
+} satisfies Record<string, FormattedDateFormat>;
+
 const CustomStatusExpiry = ({currentUser, isMilitaryTime, showPrefix, showTimeCompulsory, showToday, testID = '', textStyles = {}, theme, time, withinBrackets}: Props) => {
     const userTimezone = getUserTimezoneProps(currentUser);
     const timezone = userTimezone.useAutomaticTimezone ? userTimezone.automaticTimezone : userTimezone.manualTimezone;
@@ -73,11 +78,11 @@ const CustomStatusExpiry = ({currentUser, isMilitaryTime, showPrefix, showTimeCo
             />
         );
     } else if (expiryMomentTime.isAfter(tomorrowEndTime)) {
-        let format = 'dddd';
+        let format: FormattedDateFormat = DATE_FORMATS.withinWeek;
         if (expiryMomentTime.isAfter(plusSixDaysEndTime) && isCurrentYear) {
-            format = 'MMM DD';
+            format = DATE_FORMATS.withinYear;
         } else if (!isCurrentYear) {
-            format = 'MMM DD, YYYY';
+            format = DATE_FORMATS.afterYear;
         }
 
         dateComponent = (

@@ -4,7 +4,7 @@
 import {useIsFocused, useRoute} from '@react-navigation/native';
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {useIntl} from 'react-intl';
-import {DeviceEventEmitter, FlatList, type ListRenderItemInfo, StyleSheet, View} from 'react-native';
+import {DeviceEventEmitter, type ListRenderItemInfo, View} from 'react-native';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {type Edge, SafeAreaView} from 'react-native-safe-area-context';
 
@@ -15,10 +15,12 @@ import DateSeparator from '@components/post_list/date_separator';
 import PostWithChannelInfo from '@components/post_with_channel_info';
 import RoundedHeaderContext from '@components/rounded_header_context';
 import {Events, Screens} from '@constants';
+import {ExtraKeyboardProvider} from '@context/extra_keyboard';
 import {useServerUrl} from '@context/server';
 import {useTheme} from '@context/theme';
 import {useCollapsibleHeader} from '@hooks/header';
 import {getDateForDateLine, selectOrderedPosts} from '@utils/post_list';
+import {makeStyleSheetFromTheme} from '@utils/theme';
 
 import EmptyState from './components/empty';
 
@@ -29,16 +31,15 @@ type Props = {
     appsEnabled: boolean;
     currentTimezone: string | null;
     customEmojiNames: string[];
-    isTimezoneEnabled: boolean;
     posts: PostModel[];
 }
 
-const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 const edges: Edge[] = ['bottom', 'left', 'right'];
 
-const styles = StyleSheet.create({
+const getStyleSheet = makeStyleSheetFromTheme((theme) => ({
     flex: {
         flex: 1,
+        backgroundColor: theme.centerChannelBg,
     },
     container: {
         flex: 1,
@@ -48,9 +49,9 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
     },
-});
+}));
 
-function SavedMessages({appsEnabled, posts, currentTimezone, customEmojiNames, isTimezoneEnabled}: Props) {
+function SavedMessages({appsEnabled, posts, currentTimezone, customEmojiNames}: Props) {
     const intl = useIntl();
     const [loading, setLoading] = useState(!posts.length);
     const [refreshing, setRefreshing] = useState(false);
@@ -58,6 +59,7 @@ function SavedMessages({appsEnabled, posts, currentTimezone, customEmojiNames, i
     const serverUrl = useServerUrl();
     const route = useRoute();
     const isFocused = useIsFocused();
+    const styles = getStyleSheet(theme);
 
     const params = route.params as {direction: string};
     const toLeft = params.direction === 'left';
@@ -86,9 +88,9 @@ function SavedMessages({appsEnabled, posts, currentTimezone, customEmojiNames, i
         }
     }, [serverUrl, isFocused]);
 
-    const {scrollPaddingTop, scrollRef, scrollValue, onScroll, headerHeight} = useCollapsibleHeader<FlatList<string>>(true, onSnap);
+    const {scrollPaddingTop, scrollRef, scrollValue, onScroll, headerHeight} = useCollapsibleHeader<Animated.FlatList<string>>(true, onSnap);
     const paddingTop = useMemo(() => ({paddingTop: scrollPaddingTop, flexGrow: 1}), [scrollPaddingTop]);
-    const data = useMemo(() => selectOrderedPosts(posts, 0, false, '', '', false, isTimezoneEnabled, currentTimezone, false).reverse(), [posts]);
+    const data = useMemo(() => selectOrderedPosts(posts, 0, false, '', '', false, currentTimezone, false).reverse(), [posts]);
 
     const animated = useAnimatedStyle(() => {
         return {
@@ -144,7 +146,7 @@ function SavedMessages({appsEnabled, posts, currentTimezone, customEmojiNames, i
                     <DateSeparator
                         key={item.value}
                         date={getDateForDateLine(item.value)}
-                        timezone={isTimezoneEnabled ? currentTimezone : null}
+                        timezone={currentTimezone}
                     />
                 );
             case 'post':
@@ -162,10 +164,10 @@ function SavedMessages({appsEnabled, posts, currentTimezone, customEmojiNames, i
             default:
                 return null;
         }
-    }, [appsEnabled, currentTimezone, customEmojiNames, isTimezoneEnabled, theme]);
+    }, [appsEnabled, currentTimezone, customEmojiNames, theme]);
 
     return (
-        <>
+        <ExtraKeyboardProvider>
             <NavigationHeader
                 isLargeTitle={true}
                 showBackButton={false}
@@ -183,7 +185,7 @@ function SavedMessages({appsEnabled, posts, currentTimezone, customEmojiNames, i
                     <Animated.View style={top}>
                         <RoundedHeaderContext/>
                     </Animated.View>
-                    <AnimatedFlatList
+                    <Animated.FlatList
                         ref={scrollRef}
                         contentContainerStyle={paddingTop}
                         ListEmptyComponent={emptyList}
@@ -203,7 +205,7 @@ function SavedMessages({appsEnabled, posts, currentTimezone, customEmojiNames, i
                     />
                 </Animated.View>
             </SafeAreaView>
-        </>
+        </ExtraKeyboardProvider>
     );
 }
 

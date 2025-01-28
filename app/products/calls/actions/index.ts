@@ -15,6 +15,22 @@ export {
     handleCallsSlashCommand,
     startCallRecording,
     stopCallRecording,
+    dismissIncomingCall,
+    hostMake,
+    hostMuteSession,
+    hostMuteOthers,
+    hostStopScreenshare,
+    hostLowerHand,
+    hostRemove,
+    setPreferredAudioRoute,
+    initializeVoiceTrack,
+    sendReaction,
+    endCall,
+    loadCallForChannel,
+    loadConfigAndCalls,
+    checkIsCallsPluginEnabled,
+    canEndCall,
+    getEndCallMessage,
 } from './calls';
 
 export {hasMicrophonePermission} from './permissions';

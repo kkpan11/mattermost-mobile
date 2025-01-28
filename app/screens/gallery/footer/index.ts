@@ -1,8 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import {withDatabase} from '@nozbe/watermelondb/DatabaseProvider';
-import withObservables from '@nozbe/with-observables';
+import {withDatabase, withObservables} from '@nozbe/watermelondb/react';
 import {combineLatest, of as of$} from 'rxjs';
 import {switchMap} from 'rxjs/operators';
 
@@ -15,7 +14,6 @@ import {observeTeammateNameDisplay, observeUser} from '@queries/servers/user';
 import Footer from './footer';
 
 import type {WithDatabaseArgs} from '@typings/database/database';
-import type ChannelModel from '@typings/database/models/servers/channel';
 import type {GalleryItemType} from '@typings/screens/gallery';
 
 type FooterProps = WithDatabaseArgs & {
@@ -49,8 +47,8 @@ const enhanced = withObservables(['item'], ({database, item}: FooterProps) => {
     const enablePostUsernameOverride = observeConfigBooleanValue(database, 'EnablePostUsernameOverride');
     const enablePostIconOverride = observeConfigBooleanValue(database, 'EnablePostIconOverride');
     const enablePublicLink = observeConfigBooleanValue(database, 'EnablePublicLink');
-    const channelName = channel.pipe(switchMap((c: ChannelModel) => of$(c.displayName)));
-    const isDirectChannel = channel.pipe(switchMap((c: ChannelModel) => of$(c.type === General.DM_CHANNEL)));
+    const channelName = channel.pipe(switchMap((c) => of$(c?.displayName || '')));
+    const isDirectChannel = channel.pipe(switchMap((c) => of$(c?.type === General.DM_CHANNEL)));
 
     return {
         author,

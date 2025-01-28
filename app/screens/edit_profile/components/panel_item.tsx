@@ -9,10 +9,10 @@ import SlideUpPanelItem from '@components/slide_up_panel_item';
 import {dismissBottomSheet} from '@screens/navigation';
 
 import type PickerUtil from '@utils/file/file_picker';
-import type {Source} from 'react-native-fast-image';
+import type {ImageSource} from 'expo-image';
 
 type PanelType = {
-    icon: string | Source;
+    icon: string | ImageSource;
     onPress: () => Promise<void> | void;
     testID: string;
     text: MessageDescriptor;
@@ -71,7 +71,7 @@ const PanelItem = ({pickerAction, pictureUtils, onRemoveProfileImage}: PanelItem
 
     return (
         <SlideUpPanelItem
-            icon={item.icon}
+            leftIcon={item.icon}
             onPress={item.onPress}
             testID={item.testID}
             text={intl.formatMessage(item.text)}

@@ -1,7 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import React, {useCallback, useEffect} from 'react';
+import React, {useCallback, useEffect, useMemo} from 'react';
 import {useIntl} from 'react-intl';
 import {Keyboard, type StyleProp, TouchableHighlight, View, type ViewStyle} from 'react-native';
 
@@ -15,7 +15,9 @@ import {useIsTablet} from '@hooks/device';
 import {bottomSheetModalOptions, showModal, showModalOverCurrentContext} from '@screens/navigation';
 import {emptyFunction} from '@utils/general';
 import {getMarkdownTextStyles} from '@utils/markdown';
+import {isUserActivityProp} from '@utils/post_list';
 import {changeOpacity, makeStyleSheetFromTheme} from '@utils/theme';
+import {secureGetFromRecord} from '@utils/types';
 
 import LastUsers from './last_users';
 import {postTypeMessages} from './messages';
@@ -25,7 +27,7 @@ type Props = {
     currentUserId?: string;
     currentUsername?: string;
     location: string;
-    post: Post;
+    post: Post | null;
     showJoinLeave: boolean;
     testID?: string;
     theme: Theme;
@@ -65,22 +67,17 @@ const CombinedUserActivity = ({
     const intl = useIntl();
     const isTablet = useIsTablet();
     const serverUrl = useServerUrl();
-    const itemTestID = `${testID}.${post.id}`;
     const textStyles = getMarkdownTextStyles(theme);
-    const {allUserIds, allUsernames, messageData} = post.props.user_activity;
     const styles = getStyleSheet(theme);
     const content = [];
     const removedUserIds: string[] = [];
 
-    const loadUserProfiles = () => {
-        if (allUserIds.length) {
-            fetchMissingProfilesByIds(serverUrl, allUserIds);
+    const userActivity = useMemo(() => {
+        if (isUserActivityProp(post?.props?.user_activity)) {
+            return post?.props?.user_activity;
         }
-
-        if (allUsernames.length) {
-            fetchMissingProfilesByUsernames(serverUrl, allUsernames);
-        }
-    };
+        return undefined;
+    }, [post?.props?.user_activity]);
 
     const getUsernames = (userIds: string[]) => {
         const someone = intl.formatMessage({id: 'channel_loader.someone', defaultMessage: 'Someone'});
@@ -88,7 +85,7 @@ const CombinedUserActivity = ({
         const usernamesValues = Object.values(usernamesById);
         const usernames = userIds.reduce((acc: string[], id: string) => {
             if (id !== currentUserId && id !== currentUsername) {
-                const name = usernamesById[id] ?? usernamesValues.find((n) => n === id);
+                const name = secureGetFromRecord(usernamesById, id) ?? usernamesValues.find((n) => n === id);
                 acc.push(name ? `@${name}` : someone);
             }
             return acc;
@@ -119,9 +116,12 @@ const CombinedUserActivity = ({
         }
     }, [post, canDelete, isTablet, intl, location]);
 
-    const renderMessage = (postType: string, userIds: string[], actorId: string) => {
+    const renderMessage = (postType: string, userIds: string[], actorId?: string) => {
+        if (!post) {
+            return null;
+        }
         let actor = '';
-        if (usernamesById[actorId]) {
+        if (actorId && secureGetFromRecord(usernamesById, actorId)) {
             actor = `@${usernamesById[actorId]}`;
         }
 
@@ -150,11 +150,11 @@ const CombinedUserActivity = ({
         const secondUser = usernames[1];
         let localeHolder;
         if (numOthers === 0) {
-            localeHolder = postTypeMessages[postType].one;
+            localeHolder = secureGetFromRecord(postTypeMessages, postType)?.one;
 
             if (
                 (userIds[0] === currentUserId || userIds[0] === currentUsername) &&
-                postTypeMessages[postType].one_you
+                secureGetFromRecord(postTypeMessages, postType)?.one_you
             ) {
                 localeHolder = postTypeMessages[postType].one_you;
             }
@@ -162,7 +162,8 @@ const CombinedUserActivity = ({
             localeHolder = postTypeMessages[postType].two;
         }
 
-        const formattedMessage = intl.formatMessage(localeHolder, {firstUser, secondUser, actor});
+        // We default to empty string, but this should never happen
+        const formattedMessage = localeHolder ? intl.formatMessage(localeHolder, {firstUser, secondUser, actor}) : '';
         return (
             <Markdown
                 channelId={post.channel_id}
@@ -177,9 +178,27 @@ const CombinedUserActivity = ({
     };
 
     useEffect(() => {
-        loadUserProfiles();
-    }, [allUserIds, allUsernames]);
+        if (!userActivity) {
+            return;
+        }
 
+        const allUserIds = userActivity.allUserIds;
+        const allUsernames = userActivity.allUsernames;
+        if (allUserIds.length) {
+            fetchMissingProfilesByIds(serverUrl, allUserIds);
+        }
+
+        if (allUsernames.length) {
+            fetchMissingProfilesByUsernames(serverUrl, allUsernames);
+        }
+    }, [userActivity?.allUserIds, userActivity?.allUsernames]);
+
+    if (!post) {
+        return null;
+    }
+
+    const itemTestID = `${testID}.${post.id}`;
+    const messageData = userActivity?.messageData || [];
     for (const message of messageData) {
         const {postType, actorId} = message;
         const userIds = new Set<string>(message.userIds);

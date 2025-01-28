@@ -219,6 +219,7 @@ const FilteredList = ({
                 />
             );
         }
+
         if ('teamId' in item) {
             return (
                 <ChannelItem
@@ -230,7 +231,9 @@ const FilteredList = ({
                     testID='find_channels.filtered_list.channel_item'
                 />
             );
-        } else if ('username' in item) {
+        }
+
+        if ('username' in item) {
             return (
                 <UserItem
                     onUserPress={onOpenDirectMessage}
@@ -244,6 +247,7 @@ const FilteredList = ({
         return (
             <ChannelItem
                 channel={item}
+                isOnCenterBg={true}
                 onPress={onJoinChannel}
                 showTeamName={showTeamName}
                 shouldHighlightState={true}

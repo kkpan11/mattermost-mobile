@@ -4,7 +4,6 @@
 import React, {useCallback} from 'react';
 import {useIntl} from 'react-intl';
 import {TouchableOpacity, View} from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {setStatus} from '@actions/remote/user';
 import FormattedText from '@components/formatted_text';
@@ -57,7 +56,6 @@ type Props = {
 };
 const UserStatus = ({currentUser}: Props) => {
     const intl = useIntl();
-    const {bottom} = useSafeAreaInsets();
     const serverUrl = useServerUrl();
     const theme = useTheme();
     const styles = getStyleSheet(theme);
@@ -78,8 +76,8 @@ const UserStatus = ({currentUser}: Props) => {
                         </View>
                     )}
                     <SlideUpPanelItem
-                        icon='check-circle'
-                        iconStyles={{color: theme.onlineIndicator}}
+                        leftIcon='check-circle'
+                        leftIconStyles={{color: theme.onlineIndicator}}
                         onPress={() => setUserStatus(ONLINE)}
                         testID='user_status.online.option'
                         text={intl.formatMessage({
@@ -89,8 +87,8 @@ const UserStatus = ({currentUser}: Props) => {
                         textStyles={styles.label}
                     />
                     <SlideUpPanelItem
-                        icon='clock'
-                        iconStyles={{color: theme.awayIndicator}}
+                        leftIcon='clock'
+                        leftIconStyles={{color: theme.awayIndicator}}
                         onPress={() => setUserStatus(AWAY)}
                         testID='user_status.away.option'
                         text={intl.formatMessage({
@@ -100,8 +98,8 @@ const UserStatus = ({currentUser}: Props) => {
                         textStyles={styles.label}
                     />
                     <SlideUpPanelItem
-                        icon='minus-circle'
-                        iconStyles={{color: theme.dndIndicator}}
+                        leftIcon='minus-circle'
+                        leftIconStyles={{color: theme.dndIndicator}}
                         onPress={() => setUserStatus(DND)}
                         testID='user_status.dnd.option'
                         text={intl.formatMessage({
@@ -111,8 +109,8 @@ const UserStatus = ({currentUser}: Props) => {
                         textStyles={styles.label}
                     />
                     <SlideUpPanelItem
-                        icon='circle-outline'
-                        iconStyles={{color: changeOpacity('#B8B8B8', 0.64)}}
+                        leftIcon='circle-outline'
+                        leftIconStyles={{color: changeOpacity('#B8B8B8', 0.64)}}
                         onPress={() => setUserStatus(OFFLINE)}
                         testID='user_status.offline.option'
                         text={intl.formatMessage({
@@ -125,7 +123,7 @@ const UserStatus = ({currentUser}: Props) => {
             );
         };
 
-        const snapPoint = bottomSheetSnapPoint(4, ITEM_HEIGHT, bottom);
+        const snapPoint = bottomSheetSnapPoint(4, ITEM_HEIGHT);
         bottomSheet({
             closeButtonId: 'close-set-user-status',
             renderContent,
@@ -133,7 +131,7 @@ const UserStatus = ({currentUser}: Props) => {
             title: intl.formatMessage({id: 'user_status.title', defaultMessage: 'Status'}),
             theme,
         });
-    }), [theme, bottom]);
+    }), [theme]);
 
     const updateStatus = useCallback((status: string) => {
         const userStatus = {

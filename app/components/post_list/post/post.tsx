@@ -1,7 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import React, {type ReactNode, useEffect, useMemo, useRef, useState} from 'react';
+import React, {type ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useIntl} from 'react-intl';
 import {Keyboard, Platform, type StyleProp, View, type ViewStyle, TouchableHighlight} from 'react-native';
 
@@ -14,13 +14,14 @@ import SystemAvatar from '@components/system_avatar';
 import SystemHeader from '@components/system_header';
 import {POST_TIME_TO_FAIL} from '@constants/post';
 import * as Screens from '@constants/screens';
+import {useHideExtraKeyboardIfNeeded} from '@context/extra_keyboard';
 import {useServerUrl} from '@context/server';
 import {useTheme} from '@context/theme';
 import {useIsTablet} from '@hooks/device';
+import PerformanceMetricsManager from '@managers/performance_metrics_manager';
 import {openAsBottomSheet} from '@screens/navigation';
 import {hasJumboEmojiOnly} from '@utils/emoji/helpers';
 import {fromAutoResponder, isFromWebhook, isPostFailed, isPostPendingOrFailed, isSystemMessage} from '@utils/post';
-import {preventDoubleTap} from '@utils/tap';
 import {changeOpacity, makeStyleSheetFromTheme} from '@utils/theme';
 
 import Avatar from './avatar';
@@ -60,6 +61,7 @@ type PostProps = {
     post: PostModel;
     rootId?: string;
     previousPost?: PostModel;
+    isLastPost: boolean;
     hasReactions: boolean;
     searchPatterns?: SearchPattern[];
     shouldRenderReplyButton?: boolean;
@@ -109,10 +111,39 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
 });
 
 const Post = ({
-    appsEnabled, canDelete, currentUser, customEmojiNames, differentThreadSequence, hasFiles, hasReplies, highlight, highlightPinnedOrSaved = true, highlightReplyBar,
-    isCRTEnabled, isConsecutivePost, isEphemeral, isFirstReply, isSaved, isLastReply, isPostAcknowledgementEnabled, isPostAddChannelMember, isPostPriorityEnabled,
-    location, post, rootId, hasReactions, searchPatterns, shouldRenderReplyButton, skipSavedHeader, skipPinnedHeader, showAddReaction = true, style,
-    testID, thread, previousPost,
+    appsEnabled,
+    canDelete,
+    currentUser,
+    customEmojiNames,
+    differentThreadSequence,
+    hasFiles,
+    hasReplies,
+    highlight,
+    highlightPinnedOrSaved = true,
+    highlightReplyBar,
+    isCRTEnabled,
+    isConsecutivePost,
+    isEphemeral,
+    isFirstReply,
+    isSaved,
+    isLastReply,
+    isPostAcknowledgementEnabled,
+    isPostAddChannelMember,
+    isPostPriorityEnabled,
+    location,
+    post,
+    rootId,
+    hasReactions,
+    searchPatterns,
+    shouldRenderReplyButton,
+    skipSavedHeader,
+    skipPinnedHeader,
+    showAddReaction = true,
+    style,
+    testID,
+    thread,
+    previousPost,
+    isLastPost,
 }: PostProps) => {
     const pressDetected = useRef(false);
     const intl = useIntl();
@@ -145,7 +176,7 @@ const Post = ({
         return false;
     }, [customEmojiNames, post.message]);
 
-    const handlePostPress = () => {
+    const handlePostPress = useCallback(() => {
         if ([Screens.SAVED_MESSAGES, Screens.MENTIONS, Screens.SEARCH, Screens.PINNED_MESSAGES].includes(location)) {
             showPermalink(serverUrl, '', post.id);
             return;
@@ -164,19 +195,20 @@ const Post = ({
         setTimeout(() => {
             pressDetected.current = false;
         }, 300);
-    };
+    }, [
+        hasBeenDeleted, isAutoResponder, isEphemeral,
+        isPendingOrFailed, isSystemPost, location, serverUrl, post,
+    ]);
 
-    const handlePress = preventDoubleTap(() => {
+    const handlePress = useHideExtraKeyboardIfNeeded(() => {
         pressDetected.current = true;
 
         if (post) {
-            Keyboard.dismiss();
-
             setTimeout(handlePostPress, 300);
         }
-    });
+    }, [handlePostPress, post]);
 
-    const showPostOptions = () => {
+    const showPostOptions = useHideExtraKeyboardIfNeeded(() => {
         if (!post) {
             return;
         }
@@ -200,7 +232,11 @@ const Post = ({
             title,
             props: passProps,
         });
-    };
+    }, [
+        canDelete, hasBeenDeleted, intl,
+        isEphemeral, isPendingOrFailed, isTablet, isSystemPost,
+        location, post, serverUrl, showAddReaction, theme,
+    ]);
 
     const [, rerender] = useState(false);
     useEffect(() => {
@@ -215,6 +251,19 @@ const Post = ({
             }
         };
     }, [post.id]);
+
+    useEffect(() => {
+        if (!isLastPost) {
+            return;
+        }
+
+        if (location !== 'Channel' && location !== 'Thread') {
+            return;
+        }
+
+        PerformanceMetricsManager.finishLoad(location === 'Thread' ? 'THREAD' : 'CHANNEL', serverUrl);
+        PerformanceMetricsManager.endMetric('mobile_channel_switch', serverUrl);
+    }, []);
 
     const highlightSaved = isSaved && !skipSavedHeader;
     const hightlightPinned = post.isPinned && !skipPinnedHeader;
@@ -262,6 +311,7 @@ const Post = ({
                 <SystemHeader
                     createAt={post.createAt}
                     theme={theme}
+                    isEphemeral={isEphemeral}
                 />
             );
         } else {
@@ -297,6 +347,12 @@ const Post = ({
             <CallsCustomMessage
                 serverUrl={serverUrl}
                 post={post}
+
+                // Note: the below are provided by the index, but typescript seems to be having problems.
+                otherParticipants={false}
+                isAdmin={false}
+                isHost={false}
+                joiningChannelId={null}
             />
         );
     } else {

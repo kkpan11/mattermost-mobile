@@ -1,20 +1,22 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import {Image, type ImageSource} from 'expo-image';
 import React, {useMemo, useRef} from 'react';
 import {TouchableWithoutFeedback, useWindowDimensions} from 'react-native';
-import FastImage, {type Source} from 'react-native-fast-image';
 import Animated from 'react-native-reanimated';
 
-import {Device as DeviceConstant, View as ViewConstants} from '@constants';
+import {View as ViewConstants} from '@constants';
 import {GalleryInit} from '@context/gallery';
 import {useGalleryItem} from '@hooks/gallery';
 import {lookupMimeType} from '@utils/file';
 import {openGalleryAtIndex} from '@utils/gallery';
 import {generateId} from '@utils/general';
+import {isTablet} from '@utils/helpers';
 import {calculateDimensions} from '@utils/images';
 import {type BestImage, getNearestPoint} from '@utils/opengraph';
 import {changeOpacity, makeStyleSheetFromTheme} from '@utils/theme';
+import {secureGetFromRecord} from '@utils/types';
 import {extractFilenameFromUrl, isValidUrl} from '@utils/url';
 
 import type {GalleryItemType} from '@typings/screens/gallery';
@@ -51,7 +53,7 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
 const getViewPostWidth = (isReplyPost: boolean, deviceHeight: number, deviceWidth: number) => {
     const deviceSize = deviceWidth > deviceHeight ? deviceHeight : deviceWidth;
     const viewPortWidth = deviceSize - VIEWPORT_IMAGE_OFFSET - (isReplyPost ? VIEWPORT_IMAGE_REPLY_OFFSET : 0);
-    const tabletOffset = DeviceConstant.IS_TABLET ? ViewConstants.TABLET_SIDEBAR_WIDTH : 0;
+    const tabletOffset = isTablet() ? ViewConstants.TABLET_SIDEBAR_WIDTH : 0;
 
     return viewPortWidth - tabletOffset;
 };
@@ -70,10 +72,7 @@ const OpengraphImage = ({isReplyPost, layoutWidth, location, metadata, openGraph
     const imageUrl = (bestImage.secure_url || bestImage.url)!;
     const imagesMetadata = metadata?.images;
 
-    let ogImage;
-    if (imagesMetadata && imagesMetadata[imageUrl]) {
-        ogImage = imagesMetadata[imageUrl];
-    }
+    let ogImage = secureGetFromRecord(imagesMetadata, imageUrl);
 
     if (!ogImage) {
         ogImage = openGraphImages.find((i: BestImage) => i.url === imageUrl || i.secure_url === imageUrl);
@@ -105,7 +104,7 @@ const OpengraphImage = ({isReplyPost, layoutWidth, location, metadata, openGraph
         openGalleryAtIndex(galleryIdentifier, 0, [item]);
     };
 
-    const source: Source = {};
+    const source: ImageSource = {};
     if (isValidUrl(imageUrl)) {
         source.uri = imageUrl;
     }
@@ -122,13 +121,11 @@ const OpengraphImage = ({isReplyPost, layoutWidth, location, metadata, openGraph
             <Animated.View style={[styles, style.imageContainer, dimensionsStyle]}>
                 <TouchableWithoutFeedback onPress={onGestureEvent}>
                     <Animated.View testID={`OpenGraphImage-${fileId}`}>
-                        <FastImage
+                        <Image
                             style={[style.image, dimensionsStyle]}
                             source={source}
-
-                            // @ts-expect-error legacy ref
+                            contentFit='contain'
                             ref={ref}
-                            resizeMode='contain'
                             nativeID={`OpenGraphImage-${fileId}`}
                         />
                     </Animated.View>

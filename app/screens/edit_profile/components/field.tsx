@@ -18,6 +18,7 @@ export type FieldProps = TextInputProps & {
     onTextChange: (fieldKey: string, value: string) => void;
     isOptional?: boolean;
     testID: string;
+    error?: string;
     value: string;
     fieldRef: RefObject<FloatingTextInputRef>;
     onFocusNextField: (fieldKey: string) => void;
@@ -49,6 +50,7 @@ const Field = ({
     testID,
     value,
     fieldRef,
+    error,
     onFocusNextField,
     ...props
 }: FieldProps) => {
@@ -70,7 +72,6 @@ const Field = ({
 
     const formattedLabel = isOptional ? `${label} ${optionalText}` : label;
 
-    const textInputStyle = isDisabled ? style.disabledStyle : undefined;
     const subContainer = [style.viewContainer, {paddingHorizontal: isTablet ? 42 : 20}];
     const fieldInputTestId = isDisabled ? `${testID}.input.disabled` : `${testID}.input`;
 
@@ -91,10 +92,10 @@ const Field = ({
                 onChangeText={onChangeText}
                 testID={fieldInputTestId}
                 theme={theme}
+                error={error}
                 value={value}
                 ref={fieldRef}
                 onSubmitEditing={onSubmitEditing}
-                textInputStyle={textInputStyle}
                 {...props}
             />
         </View>

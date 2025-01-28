@@ -1,10 +1,10 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import {Button} from '@rneui/base';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {useIntl} from 'react-intl';
 import {Keyboard, Platform, useWindowDimensions, View} from 'react-native';
-import Button from 'react-native-button';
 import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
 import {Navigation} from 'react-native-navigation';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
@@ -15,7 +15,7 @@ import FloatingTextInput from '@components/floating_text_input_label';
 import FormattedText from '@components/formatted_text';
 import Loading from '@components/loading';
 import useAndroidHardwareBackHandler from '@hooks/android_back_handler';
-import {useIsTablet} from '@hooks/device';
+import {useAvoidKeyboard} from '@hooks/device';
 import {t} from '@i18n';
 import Background from '@screens/background';
 import {popTopScreen} from '@screens/navigation';
@@ -25,7 +25,7 @@ import {preventDoubleTap} from '@utils/tap';
 import {changeOpacity, makeStyleSheetFromTheme} from '@utils/theme';
 import {typography} from '@utils/typography';
 
-import Shield from './mfa.svg';
+import Shield from './shield';
 
 import type {AvailableScreens} from '@typings/screens/navigation';
 
@@ -99,7 +99,6 @@ const AnimatedSafeArea = Animated.createAnimatedComponent(SafeAreaView);
 const MFA = ({componentId, config, goToHome, license, loginId, password, serverDisplayName, serverUrl, theme}: MFAProps) => {
     const dimensions = useWindowDimensions();
     const translateX = useSharedValue(dimensions.width);
-    const isTablet = useIsTablet();
     const keyboardAwareRef = useRef<KeyboardAwareScrollView>(null);
     const intl = useIntl();
     const [token, setToken] = useState<string>('');
@@ -108,20 +107,6 @@ const MFA = ({componentId, config, goToHome, license, loginId, password, serverD
     const {formatMessage} = useIntl();
 
     const styles = getStyleSheet(theme);
-
-    const onFocus = useCallback(() => {
-        if (Platform.OS === 'ios') {
-            let offsetY = 150;
-            if (isTablet) {
-                const {width, height} = dimensions;
-                const isLandscape = width > height;
-                offsetY = (isLandscape ? 270 : 150);
-            }
-            requestAnimationFrame(() => {
-                keyboardAwareRef.current?.scrollToPosition(0, offsetY);
-            });
-        }
-    }, [dimensions]);
 
     const handleInput = useCallback((userToken: string) => {
         setToken(userToken);
@@ -143,7 +128,7 @@ const MFA = ({componentId, config, goToHome, license, loginId, password, serverD
         const result: LoginActionResponse = await login(serverUrl, {loginId, password, mfaToken: token, config, license, serverDisplayName});
         setIsLoading(false);
         if (result?.error && result.failed) {
-            setError(getErrorMessage(error, intl));
+            setError(getErrorMessage(result.error, intl));
             return;
         }
         goToHome(result.error);
@@ -155,6 +140,8 @@ const MFA = ({componentId, config, goToHome, license, loginId, password, serverD
             transform: [{translateX: withTiming(translateX.value, {duration})}],
         };
     }, []);
+
+    useAvoidKeyboard(keyboardAwareRef, 2);
 
     useEffect(() => {
         const listener = {
@@ -168,15 +155,17 @@ const MFA = ({componentId, config, goToHome, license, loginId, password, serverD
         const unsubscribe = Navigation.events().registerComponentListener(listener, componentId);
 
         return () => unsubscribe.remove();
-    }, [dimensions]);
+    }, [componentId, dimensions, translateX]);
 
     useEffect(() => {
         translateX.value = 0;
     }, []);
 
-    useAndroidHardwareBackHandler(componentId, () => {
+    const close = useCallback(() => {
         popTopScreen(componentId);
-    });
+    }, [componentId]);
+
+    useAndroidHardwareBackHandler(componentId, close);
 
     return (
         <View style={styles.flex}>
@@ -188,8 +177,8 @@ const MFA = ({componentId, config, goToHome, license, loginId, password, serverD
                 <KeyboardAwareScrollView
                     bounces={false}
                     contentContainerStyle={styles.innerContainer}
-                    enableAutomaticScroll={Platform.OS === 'android'}
-                    enableOnAndroid={true}
+                    enableAutomaticScroll={false}
+                    enableOnAndroid={false}
                     enableResetScrollToCoords={true}
                     extraScrollHeight={0}
                     keyboardDismissMode='on-drag'
@@ -224,7 +213,6 @@ const MFA = ({componentId, config, goToHome, license, loginId, password, serverD
                                 keyboardType='numeric'
                                 label={formatMessage({id: 'login_mfa.token', defaultMessage: 'Enter MFA Token'})}
                                 onChangeText={handleInput}
-                                onFocus={onFocus}
                                 onSubmitEditing={submit}
                                 returnKeyType='go'
                                 spellCheck={false}
@@ -234,7 +222,8 @@ const MFA = ({componentId, config, goToHome, license, loginId, password, serverD
                             />
                             <Button
                                 testID='login_mfa.submit'
-                                containerStyle={[styles.proceedButton, buttonBackgroundStyle(theme, 'lg', 'primary', token ? 'default' : 'disabled'), error ? styles.error : undefined]}
+                                buttonStyle={[styles.proceedButton, buttonBackgroundStyle(theme, 'lg', 'primary', 'default'), error ? styles.error : undefined]}
+                                disabledStyle={[styles.proceedButton, buttonBackgroundStyle(theme, 'lg', 'primary', 'disabled'), error ? styles.error : undefined]}
                                 disabled={!token}
                                 onPress={submit}
                             >

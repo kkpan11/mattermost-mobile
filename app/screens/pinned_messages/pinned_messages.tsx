@@ -10,6 +10,7 @@ import Loading from '@components/loading';
 import DateSeparator from '@components/post_list/date_separator';
 import Post from '@components/post_list/post';
 import {Events, Screens} from '@constants';
+import {ExtraKeyboardProvider} from '@context/extra_keyboard';
 import {useServerUrl} from '@context/server';
 import {useTheme} from '@context/theme';
 import useAndroidHardwareBackHandler from '@hooks/android_back_handler';
@@ -29,7 +30,6 @@ type Props = {
     currentTimezone: string | null;
     customEmojiNames: string[];
     isCRTEnabled: boolean;
-    isTimezoneEnabled: boolean;
     posts: PostModel[];
 }
 
@@ -56,7 +56,6 @@ function SavedMessages({
     currentTimezone,
     customEmojiNames,
     isCRTEnabled,
-    isTimezoneEnabled,
     posts,
 }: Props) {
     const [loading, setLoading] = useState(!posts.length);
@@ -64,13 +63,13 @@ function SavedMessages({
     const theme = useTheme();
     const serverUrl = useServerUrl();
 
-    const data = useMemo(() => selectOrderedPosts(posts, 0, false, '', '', false, isTimezoneEnabled, currentTimezone, false).reverse(), [posts]);
+    const data = useMemo(() => selectOrderedPosts(posts, 0, false, '', '', false, currentTimezone, false).reverse(), [posts]);
 
-    const close = () => {
+    const close = useCallback(() => {
         if (componentId) {
             popTopScreen(componentId);
         }
-    };
+    }, [componentId]);
 
     useEffect(() => {
         fetchPinnedPosts(serverUrl, channelId).finally(() => {
@@ -121,7 +120,7 @@ function SavedMessages({
                     <DateSeparator
                         key={item.value}
                         date={getDateForDateLine(item.value)}
-                        timezone={isTimezoneEnabled ? currentTimezone : null}
+                        timezone={currentTimezone}
                     />
                 );
             case 'post':
@@ -146,7 +145,7 @@ function SavedMessages({
             default:
                 return null;
         }
-    }, [appsEnabled, currentTimezone, customEmojiNames, isTimezoneEnabled, theme]);
+    }, [appsEnabled, currentTimezone, customEmojiNames, theme]);
 
     return (
         <SafeAreaView
@@ -154,17 +153,19 @@ function SavedMessages({
             style={styles.flex}
             testID='pinned_messages.screen'
         >
-            <FlatList
-                contentContainerStyle={data.length ? styles.list : [styles.empty]}
-                ListEmptyComponent={emptyList}
-                data={data}
-                onRefresh={handleRefresh}
-                refreshing={refreshing}
-                renderItem={renderItem}
-                scrollToOverflowEnabled={true}
-                onViewableItemsChanged={onViewableItemsChanged}
-                testID='pinned_messages.post_list.flat_list'
-            />
+            <ExtraKeyboardProvider>
+                <FlatList
+                    contentContainerStyle={data.length ? styles.list : [styles.empty]}
+                    ListEmptyComponent={emptyList}
+                    data={data}
+                    onRefresh={handleRefresh}
+                    refreshing={refreshing}
+                    renderItem={renderItem}
+                    scrollToOverflowEnabled={true}
+                    onViewableItemsChanged={onViewableItemsChanged}
+                    testID='pinned_messages.post_list.flat_list'
+                />
+            </ExtraKeyboardProvider>
         </SafeAreaView>
     );
 }

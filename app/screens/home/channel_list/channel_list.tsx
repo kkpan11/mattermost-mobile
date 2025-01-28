@@ -10,6 +10,7 @@ import Animated, {useAnimatedStyle, withTiming} from 'react-native-reanimated';
 import {type Edge, SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {refetchCurrentUser} from '@actions/remote/user';
+import FloatingCallContainer from '@calls/components/floating_call_container';
 import AnnouncementBanner from '@components/announcement_banner';
 import ConnectionBanner from '@components/connection_banner';
 import TeamSidebar from '@components/team_sidebar';
@@ -17,6 +18,7 @@ import {Navigation as NavigationConstants, Screens} from '@constants';
 import {useServerUrl} from '@context/server';
 import {useTheme} from '@context/theme';
 import {useIsTablet} from '@hooks/device';
+import PerformanceMetricsManager from '@managers/performance_metrics_manager';
 import {resetToTeams, openToS} from '@screens/navigation';
 import NavigationStore from '@store/navigation_store';
 import {isMainActivity} from '@utils/helpers';
@@ -40,6 +42,7 @@ type ChannelProps = {
     coldStart?: boolean;
     currentUserId?: string;
     hasCurrentUser: boolean;
+    showIncomingCalls: boolean;
 };
 
 const edges: Edge[] = ['bottom', 'left', 'right'];
@@ -106,7 +109,7 @@ const ChannelListScreen = (props: ChannelProps) => {
             }
         }
         return false;
-    }, [intl]);
+    }, [intl, navigation]);
 
     const animated = useAnimatedStyle(() => {
         if (!isFocused) {
@@ -133,7 +136,7 @@ const ChannelListScreen = (props: ChannelProps) => {
         if (!props.hasTeams) {
             resetToTeams();
         }
-    }, [Boolean(props.hasTeams)]);
+    }, [props.hasTeams]);
 
     useEffect(() => {
         const back = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
@@ -167,6 +170,11 @@ const ChannelListScreen = (props: ChannelProps) => {
         }
     }, []);
 
+    useEffect(() => {
+        PerformanceMetricsManager.finishLoad('HOME', serverUrl);
+        PerformanceMetricsManager.measureTimeToInteraction();
+    }, []);
+
     return (
         <>
             <Animated.View style={top}/>
@@ -194,8 +202,14 @@ const ChannelListScreen = (props: ChannelProps) => {
                             moreThanOneTeam={props.hasMoreThanOneTeam}
                             hasChannels={props.hasChannels}
                         />
-                        {isTablet &&
+                        {isTablet && props.hasChannels &&
                             <AdditionalTabletView/>
+                        }
+                        {props.showIncomingCalls && !isTablet &&
+                            <FloatingCallContainer
+                                showIncomingCalls={props.showIncomingCalls}
+                                channelsScreen={true}
+                            />
                         }
                     </Animated.View>
                 </View>

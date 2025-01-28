@@ -6,7 +6,6 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import React, {Children, type ReactElement, useCallback} from 'react';
 import {useIntl} from 'react-intl';
 import {Alert, StyleSheet, Text, View} from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import urlParse from 'url-parse';
 
 import SlideUpPanelItem, {ITEM_HEIGHT} from '@components/slide_up_panel_item';
@@ -23,6 +22,7 @@ type MarkdownLinkProps = {
     experimentalNormalizeMarkdownLinks: string;
     href: string;
     siteURL: string;
+    onLinkLongPress?: (url?: string) => void;
 }
 
 const style = StyleSheet.create({
@@ -44,9 +44,8 @@ const parseLinkLiteral = (literal: string) => {
     return parsed.href;
 };
 
-const MarkdownLink = ({children, experimentalNormalizeMarkdownLinks, href, siteURL}: MarkdownLinkProps) => {
+const MarkdownLink = ({children, experimentalNormalizeMarkdownLinks, href, siteURL, onLinkLongPress}: MarkdownLinkProps) => {
     const intl = useIntl();
-    const {bottom} = useSafeAreaInsets();
     const managedConfig = useManagedConfig<ManagedConfig>();
     const serverUrl = useServerUrl();
     const theme = useTheme();
@@ -76,9 +75,9 @@ const MarkdownLink = ({children, experimentalNormalizeMarkdownLinks, href, siteU
         const match = matchDeepLink(url, serverUrl, siteURL);
 
         if (match) {
-            const {error} = await handleDeepLink(match, intl);
+            const {error} = await handleDeepLink(match.url, intl);
             if (error) {
-                tryOpenURL(match, onError);
+                tryOpenURL(match.url, onError);
             }
         } else {
             tryOpenURL(url, onError);
@@ -109,6 +108,11 @@ const MarkdownLink = ({children, experimentalNormalizeMarkdownLinks, href, siteU
 
     const handleLongPress = useCallback(() => {
         if (managedConfig?.copyAndPasteProtection !== 'true') {
+            if (onLinkLongPress) {
+                onLinkLongPress(href);
+                return;
+            }
+
             const renderContent = () => {
                 return (
                     <View
@@ -116,7 +120,7 @@ const MarkdownLink = ({children, experimentalNormalizeMarkdownLinks, href, siteU
                         style={style.bottomSheet}
                     >
                         <SlideUpPanelItem
-                            icon='content-copy'
+                            leftIcon='content-copy'
                             onPress={() => {
                                 dismissBottomSheet();
                                 Clipboard.setString(href);
@@ -126,7 +130,7 @@ const MarkdownLink = ({children, experimentalNormalizeMarkdownLinks, href, siteU
                         />
                         <SlideUpPanelItem
                             destructive={true}
-                            icon='cancel'
+                            leftIcon='cancel'
                             onPress={() => {
                                 dismissBottomSheet();
                             }}
@@ -140,12 +144,12 @@ const MarkdownLink = ({children, experimentalNormalizeMarkdownLinks, href, siteU
             bottomSheet({
                 closeButtonId: 'close-mardown-link',
                 renderContent,
-                snapPoints: [1, bottomSheetSnapPoint(2, ITEM_HEIGHT, bottom)],
+                snapPoints: [1, bottomSheetSnapPoint(2, ITEM_HEIGHT)],
                 title: intl.formatMessage({id: 'post.options.title', defaultMessage: 'Options'}),
                 theme,
             });
         }
-    }, [managedConfig, intl, bottom, theme]);
+    }, [managedConfig?.copyAndPasteProtection, onLinkLongPress, intl, theme, href]);
 
     const renderChildren = experimentalNormalizeMarkdownLinks ? parseChildren() : children;
 

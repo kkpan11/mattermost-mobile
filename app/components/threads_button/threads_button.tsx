@@ -2,7 +2,7 @@
 // See LICENSE.txt for license information.
 
 import React, {useCallback, useMemo} from 'react';
-import {TouchableOpacity, View} from 'react-native';
+import {DeviceEventEmitter, TouchableOpacity, View} from 'react-native';
 
 import {switchToGlobalThreads} from '@actions/local/thread';
 import Badge from '@components/badge';
@@ -13,6 +13,8 @@ import {
 } from '@components/channel_item/channel_item';
 import CompassIcon from '@components/compass_icon';
 import FormattedText from '@components/formatted_text';
+import {Events} from '@constants';
+import {THREAD} from '@constants/screens';
 import {HOME_PADDING} from '@constants/view';
 import {useServerUrl} from '@context/server';
 import {useTheme} from '@context/theme';
@@ -39,9 +41,7 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => ({
 
 type Props = {
     currentChannelId: string;
-    groupUnreadsSeparately: boolean;
     onCenterBg?: boolean;
-    onlyUnreads: boolean;
     onPress?: () => void;
     shouldHighlighActive?: boolean;
     unreadsAndMentions: {
@@ -53,9 +53,7 @@ type Props = {
 
 const ThreadsButton = ({
     currentChannelId,
-    groupUnreadsSeparately,
     onCenterBg,
-    onlyUnreads,
     onPress,
     unreadsAndMentions,
     shouldHighlighActive = false,
@@ -69,6 +67,7 @@ const ThreadsButton = ({
     const customStyles = getStyleSheet(theme);
 
     const handlePress = useCallback(preventDoubleTap(() => {
+        DeviceEventEmitter.emit(Events.ACTIVE_SCREEN, THREAD);
         if (onPress) {
             onPress();
         } else {
@@ -112,10 +111,6 @@ const ThreadsButton = ({
 
         return [container, icon, text, badge];
     }, [customStyles, isActive, onCenterBg, styles, unreads, isOnHome]);
-
-    if (groupUnreadsSeparately && (onlyUnreads && !isActive && !unreads && !mentions)) {
-        return null;
-    }
 
     return (
         <TouchableOpacity

@@ -5,7 +5,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Platform, useWindowDimensions, View, type LayoutChangeEvent} from 'react-native';
 import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
 import {Navigation} from 'react-native-navigation';
-import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
+import Animated, {ReduceMotion, useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
 import FormattedText from '@components/formatted_text';
@@ -119,7 +119,7 @@ const LoginOptions = ({
                 defaultMessage="You can't log in to your account yet. At least one login option must be configured. Contact your System Admin for assistance."
             />
         );
-    }, [hasLoginForm, numberSSOs, theme]);
+    }, [hasLoginForm, numberSSOs, styles.subheader]);
 
     const goToSso = preventDoubleTap((ssoType: string) => {
         goToScreen(Screens.SSO, '', {config, extra, launchError, launchType, license, theme, ssoType, serverDisplayName, serverUrl}, loginAnimationOptions());
@@ -134,7 +134,7 @@ const LoginOptions = ({
     const transform = useAnimatedStyle(() => {
         const duration = Platform.OS === 'android' ? 250 : 350;
         return {
-            transform: [{translateX: withTiming(translateX.value, {duration})}],
+            transform: [{translateX: withTiming(translateX.value, {duration, reduceMotion: ReduceMotion.Never})}],
         };
     }, []);
 
@@ -142,9 +142,9 @@ const LoginOptions = ({
         dismissModal({componentId});
     };
 
-    const pop = () => {
+    const pop = useCallback(() => {
         popTopScreen(componentId);
-    };
+    }, [componentId]);
 
     const onLayout = useCallback((e: LayoutChangeEvent) => {
         const {height} = e.nativeEvent.layout;
@@ -160,7 +160,7 @@ const LoginOptions = ({
         });
 
         return () => navigationEvents.remove();
-    }, []);
+    }, [closeButtonId, componentId, serverUrl]);
 
     useEffect(() => {
         translateX.value = 0;
@@ -178,7 +178,7 @@ const LoginOptions = ({
         const unsubscribe = Navigation.events().registerComponentListener(listener, Screens.LOGIN);
 
         return () => unsubscribe.remove();
-    }, [dimensions]);
+    }, [dimensions, translateX]);
 
     useNavButtonPressed(closeButtonId || '', componentId, dismiss, []);
     useAndroidHardwareBackHandler(componentId, pop);
@@ -219,11 +219,11 @@ const LoginOptions = ({
                 <KeyboardAwareScrollView
                     bounces={true}
                     contentContainerStyle={[styles.innerContainer, additionalContainerStyle]}
-                    enableAutomaticScroll={true}
+                    enableAutomaticScroll={false}
                     enableOnAndroid={false}
                     enableResetScrollToCoords={true}
-                    extraScrollHeight={0}
-                    keyboardDismissMode='interactive'
+                    extraScrollHeight={20}
+                    keyboardDismissMode='on-drag'
                     keyboardShouldPersistTaps='handled'
                     ref={keyboardAwareRef}
                     scrollToOverflowEnabled={true}
@@ -239,6 +239,7 @@ const LoginOptions = ({
                         <Form
                             config={config}
                             extra={extra}
+                            keyboardAwareRef={keyboardAwareRef}
                             license={license}
                             launchError={launchError}
                             launchType={launchType}

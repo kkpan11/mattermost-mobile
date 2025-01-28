@@ -11,7 +11,6 @@ import {General, Permissions} from '@constants';
 import {MM_TABLES} from '@constants/database';
 import {sanitizeLikeString} from '@helpers/database';
 import {hasPermission} from '@utils/role';
-import {getUserIdFromChannelName} from '@utils/user';
 
 import {prepareDeletePost} from './post';
 import {queryRoles} from './role';
@@ -21,6 +20,7 @@ import {observeTeammateNameDisplay} from './user';
 import type ServerDataOperator from '@database/operator/server_data_operator';
 import type {Clause} from '@nozbe/watermelondb/QueryDescription';
 import type ChannelModel from '@typings/database/models/servers/channel';
+import type ChannelBookmarkModel from '@typings/database/models/servers/channel_bookmark';
 import type ChannelInfoModel from '@typings/database/models/servers/channel_info';
 import type ChannelMembershipModel from '@typings/database/models/servers/channel_membership';
 import type MyChannelModel from '@typings/database/models/servers/my_channel';
@@ -28,6 +28,29 @@ import type MyChannelSettingsModel from '@typings/database/models/servers/my_cha
 import type UserModel from '@typings/database/models/servers/user';
 
 const {SERVER: {CHANNEL, MY_CHANNEL, CHANNEL_MEMBERSHIP, MY_CHANNEL_SETTINGS, CHANNEL_INFO, USER, TEAM}} = MM_TABLES;
+
+export type ChannelMembershipsExtended = Pick<ChannelMembership, 'user_id' | 'channel_id' | 'scheme_admin'>;
+
+export function prepareChannels(
+    operator: ServerDataOperator,
+    channels?: Channel[],
+    channelInfos?: ChannelInfo[],
+    channelMemberships?: ChannelMembershipsExtended[],
+    memberships?: ChannelMembership[],
+    isCRTEnabled?: boolean,
+): Array<Promise<Model[]>> {
+    try {
+        const channelRecords = operator.handleChannel({channels, prepareRecordsOnly: true});
+        const channelInfoRecords = operator.handleChannelInfo({channelInfos, prepareRecordsOnly: true});
+        const membershipRecords = operator.handleChannelMembership({channelMemberships, prepareRecordsOnly: true});
+        const myChannelRecords = operator.handleMyChannel({channels, myChannels: memberships, prepareRecordsOnly: true, isCRTEnabled});
+        const myChannelSettingsRecords = operator.handleMyChannelSettings({settings: memberships, prepareRecordsOnly: true});
+
+        return [channelRecords, channelInfoRecords, membershipRecords, myChannelRecords, myChannelSettingsRecords];
+    } catch {
+        return [];
+    }
+}
 
 export function prepareMissingChannelsForAllTeams(operator: ServerDataOperator, channels: Channel[], channelMembers: ChannelMembership[], isCRTEnabled?: boolean): Array<Promise<Model[]>> {
     const channelInfos: ChannelInfo[] = [];
@@ -55,50 +78,33 @@ export function prepareMissingChannelsForAllTeams(operator: ServerDataOperator, 
         };
     });
 
-    try {
-        const channelRecords = operator.handleChannel({channels, prepareRecordsOnly: true});
-        const channelInfoRecords = operator.handleChannelInfo({channelInfos, prepareRecordsOnly: true});
-        const membershipRecords = operator.handleChannelMembership({channelMemberships: memberships, prepareRecordsOnly: true});
-        const myChannelRecords = operator.handleMyChannel({channels, myChannels: memberships, prepareRecordsOnly: true, isCRTEnabled});
-        const myChannelSettingsRecords = operator.handleMyChannelSettings({settings: memberships, prepareRecordsOnly: true});
-
-        return [channelRecords, channelInfoRecords, membershipRecords, myChannelRecords, myChannelSettingsRecords];
-    } catch {
-        return [];
-    }
+    return prepareChannels(operator, channels, channelInfos, memberships, memberships, isCRTEnabled);
 }
 
-export const prepareMyChannelsForTeam = async (operator: ServerDataOperator, teamId: string, channels: Channel[], channelMembers: ChannelMembership[], isCRTEnabled?: boolean, isGraphQL = false) => {
-    const {database} = operator;
-
-    const channelsQuery = isGraphQL ? queryAllChannels(database) : queryAllChannelsForTeam(database, teamId);
-    const allChannelsForTeam = (await channelsQuery.fetch()).
-        reduce((map: Record<string, ChannelModel>, channel) => {
-            map[channel.id] = channel;
-            return map;
-        }, {});
-
-    const channelInfosQuery = isGraphQL ? queryAllChannelsInfo(database) : queryAllChannelsInfoForTeam(database, teamId);
-    const allChannelsInfoForTeam = (await channelInfosQuery.fetch()).
-        reduce((map: Record<string, ChannelInfoModel>, info) => {
-            map[info.id] = info;
-            return map;
-        }, {});
-
+const buildChannelInfos = async (database: Database, channels: Channel[]) => {
     const channelInfos: ChannelInfo[] = [];
-    const memberships = channelMembers.map((cm) => {
-        return {...cm, id: cm.channel_id};
-    });
+
+    const channelsQuery = await queryAllChannels(database);
+    const storedChannelsMap = channelsQuery.reduce<Record<string, ChannelModel>>((map, channel) => {
+        map[channel.id] = channel;
+        return map;
+    }, {});
+
+    const channelInfosQuery = await queryAllChannelsInfo(database);
+    const storedChannelInfosMap = channelInfosQuery.reduce<Record<string, ChannelInfoModel>>((map, info) => {
+        map[info.id] = info;
+        return map;
+    }, {});
 
     for (const c of channels) {
-        const storedChannel = allChannelsForTeam[c.id];
+        const storedChannel = storedChannelsMap[c.id];
         let storedInfo: ChannelInfoModel | undefined;
         let member_count = 0;
         let guest_count = 0;
         let pinned_post_count = 0;
         let files_count = 0;
         if (storedChannel) {
-            storedInfo = allChannelsInfoForTeam[c.id];
+            storedInfo = storedChannelInfosMap[c.id];
             if (storedInfo) {
                 member_count = storedInfo.memberCount;
                 guest_count = storedInfo.guestCount;
@@ -118,17 +124,29 @@ export const prepareMyChannelsForTeam = async (operator: ServerDataOperator, tea
         });
     }
 
-    try {
-        const channelRecords = operator.handleChannel({channels, prepareRecordsOnly: true});
-        const channelInfoRecords = operator.handleChannelInfo({channelInfos, prepareRecordsOnly: true});
-        const membershipRecords = operator.handleChannelMembership({channelMemberships: channelMembers, prepareRecordsOnly: true});
-        const myChannelRecords = operator.handleMyChannel({channels, myChannels: memberships, prepareRecordsOnly: true, isCRTEnabled});
-        const myChannelSettingsRecords = operator.handleMyChannelSettings({settings: memberships, prepareRecordsOnly: true});
+    return channelInfos;
+};
 
-        return [channelRecords, channelInfoRecords, membershipRecords, myChannelRecords, myChannelSettingsRecords];
-    } catch {
-        return [];
-    }
+export const prepareAllMyChannels = async (operator: ServerDataOperator, channels: Channel[], channelMemberships: ChannelMembership[], isCRTEnabled?: boolean) => {
+    const {database} = operator;
+
+    const fetchedChannelIds = new Set(channels.map((c) => c.id));
+    const memberships = channelMemberships.filter((m) => fetchedChannelIds.has(m.channel_id)).map((m) => ({...m, id: m.channel_id}));
+
+    const channelInfos = await buildChannelInfos(database, channels);
+
+    return prepareChannels(operator, channels, channelInfos, channelMemberships, memberships, isCRTEnabled);
+};
+
+export const prepareMyChannelsForTeam = async (operator: ServerDataOperator, teamId: string, channels: Channel[], channelMembers: ChannelMembership[], isCRTEnabled?: boolean) => {
+    const {database} = operator;
+
+    const channelInfos = await buildChannelInfos(database, channels);
+    const memberships = channelMembers.map((cm) => {
+        return {...cm, id: cm.channel_id};
+    });
+
+    return prepareChannels(operator, channels, channelInfos, channelMembers, memberships, isCRTEnabled);
 };
 
 export const prepareDeleteChannel = async (channel: ChannelModel): Promise<Model[]> => {
@@ -170,6 +188,27 @@ export const prepareDeleteChannel = async (channel: ChannelModel): Promise<Model
         }
     }
 
+    const bookmarks = await channel.bookmarks?.fetch();
+    if (bookmarks?.length) {
+        for await (const bookmark of bookmarks) {
+            const prepareBookmarks = await prepareDeleteBookmarks(bookmark);
+            preparedModels.push(...prepareBookmarks);
+        }
+    }
+
+    return preparedModels;
+};
+
+export const prepareDeleteBookmarks = async (bookmark: ChannelBookmarkModel) => {
+    const preparedModels: Model[] = [bookmark.prepareDestroyPermanently()];
+    try {
+        if (bookmark.fileId) {
+            const file = await bookmark.file.fetch();
+            preparedModels.push(file.prepareDestroyPermanently());
+        }
+    } catch {
+        // Record not found, do nothing
+    }
     return preparedModels;
 };
 
@@ -198,6 +237,16 @@ export const queryAllMyChannel = (database: Database) => {
 export const queryAllMyChannelsForTeam = (database: Database, teamId: string) => {
     return database.get<MyChannelModel>(MY_CHANNEL).query(
         Q.on(CHANNEL, Q.where('team_id', Q.oneOf([teamId, '']))),
+    );
+};
+
+export const queryAllUnreadDMsAndGMsIds = (database: Database) => {
+    return database.get<ChannelModel>(CHANNEL).query(
+        Q.on(MY_CHANNEL, Q.or(
+            Q.where('mentions_count', Q.gt(0)),
+            Q.where('message_count', Q.gt(0)),
+        )),
+        Q.where('type', Q.oneOf([General.GM_CHANNEL, General.DM_CHANNEL])),
     );
 };
 
@@ -282,7 +331,7 @@ export const getDefaultChannelForTeam = async (database: Database, teamId: strin
     ];
 
     if (ignoreId) {
-        clauses.push(Q.where('channel_id', Q.notEq(ignoreId)));
+        clauses.push(Q.where('id', Q.notEq(ignoreId)));
     }
 
     const myChannels = await database.get<ChannelModel>(CHANNEL).query(
@@ -460,38 +509,6 @@ export const queryMyChannelUnreads = (database: Database, currentTeamId: string)
             Q.where('mentions_count', Q.gte(0)),
         ),
         Q.sortBy('last_post_at', Q.desc),
-    );
-};
-
-export const observeArchivedDirectChannels = (database: Database, currentUserId: string) => {
-    const deactivated = database.get<UserModel>(USER).query(
-        Q.where('delete_at', Q.gt(0)),
-    ).observe();
-
-    return deactivated.pipe(
-        switchMap((users) => {
-            const usersMap = new Map(users.map((u) => [u.id, u]));
-            return database.get<ChannelModel>(CHANNEL).query(
-                Q.on(
-                    CHANNEL_MEMBERSHIP,
-                    Q.and(
-                        Q.where('user_id', Q.notEq(currentUserId)),
-                        Q.where('user_id', Q.oneOf(Array.from(usersMap.keys()))),
-                    ),
-                ),
-                Q.where('type', 'D'),
-            ).observe().pipe(
-                switchMap((channels) => {
-                    // eslint-disable-next-line max-nested-callbacks
-                    return of$(new Map(channels.map((c) => {
-                        const teammateId = getUserIdFromChannelName(currentUserId, c.name);
-                        const user = usersMap.get(teammateId);
-
-                        return [c.id, user];
-                    })));
-                }),
-            );
-        }),
     );
 };
 

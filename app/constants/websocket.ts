@@ -20,6 +20,7 @@ const WebsocketEvents = {
     CHANNEL_UNARCHIVED: 'channel_restored',
     CHANNEL_UPDATED: 'channel_updated',
     CHANNEL_VIEWED: 'channel_viewed',
+    MULTIPLE_CHANNELS_VIEWED: 'multiple_channels_viewed',
     CHANNEL_MEMBER_UPDATED: 'channel_member_updated',
     CHANNEL_SCHEME_UPDATED: 'channel_scheme_updated',
     DIRECT_ADDED: 'direct_added',
@@ -60,8 +61,15 @@ const WebsocketEvents = {
     APPS_FRAMEWORK_REFRESH_BINDINGS: 'custom_com.mattermost.apps_refresh_bindings',
     CALLS_CHANNEL_ENABLED: `custom_${Calls.PluginId}_channel_enable_voice`,
     CALLS_CHANNEL_DISABLED: `custom_${Calls.PluginId}_channel_disable_voice`,
+
+    // DEPRECATED in favour of user_joined (since v0.21.0)
     CALLS_USER_CONNECTED: `custom_${Calls.PluginId}_user_connected`,
+
+    // DEPRECATED in favour of user_left (since v0.21.0)
     CALLS_USER_DISCONNECTED: `custom_${Calls.PluginId}_user_disconnected`,
+
+    CALLS_USER_JOINED: `custom_${Calls.PluginId}_user_joined`,
+    CALLS_USER_LEFT: `custom_${Calls.PluginId}_user_left`,
     CALLS_USER_MUTED: `custom_${Calls.PluginId}_user_muted`,
     CALLS_USER_UNMUTED: `custom_${Calls.PluginId}_user_unmuted`,
     CALLS_USER_VOICE_ON: `custom_${Calls.PluginId}_user_voice_on`,
@@ -73,8 +81,18 @@ const WebsocketEvents = {
     CALLS_USER_RAISE_HAND: `custom_${Calls.PluginId}_user_raise_hand`,
     CALLS_USER_UNRAISE_HAND: `custom_${Calls.PluginId}_user_unraise_hand`,
     CALLS_USER_REACTED: `custom_${Calls.PluginId}_user_reacted`,
+
+    // DEPRECATED in favour of CALLS_JOB_STATE (since v2.15.0)
     CALLS_RECORDING_STATE: `custom_${Calls.PluginId}_call_recording_state`,
+    CALLS_JOB_STATE: `custom_${Calls.PluginId}_call_job_state`,
     CALLS_HOST_CHANGED: `custom_${Calls.PluginId}_call_host_changed`,
+    CALLS_USER_DISMISSED_NOTIFICATION: `custom_${Calls.PluginId}_user_dismissed_notification`,
+    CALLS_CAPTION: `custom_${Calls.PluginId}_caption`,
+    CALLS_HOST_MUTE: `custom_${Calls.PluginId}_host_mute`,
+    CALLS_HOST_LOWER_HAND: `custom_${Calls.PluginId}_host_lower_hand`,
+    CALLS_HOST_REMOVED: `custom_${Calls.PluginId}_host_removed`,
+    CALLS_CALL_STATE: `custom_${Calls.PluginId}_call_state`,
+
     GROUP_RECEIVED: 'received_group',
     GROUP_MEMBER_ADD: 'group_member_add',
     GROUP_MEMBER_DELETE: 'group_member_delete',
@@ -82,5 +100,9 @@ const WebsocketEvents = {
     GROUP_DISSOCIATED_TO_TEAM: 'received_group_not_associated_to_team',
     GROUP_ASSOCIATED_TO_CHANNEL: 'received_group_associated_to_channel',
     GROUP_DISSOCIATED_TO_CHANNEL: 'received_group_not_associated_to_channel',
+    CHANNEL_BOOKMARK_CREATED: 'channel_bookmark_created',
+    CHANNEL_BOOKMARK_UPDATED: 'channel_bookmark_updated',
+    CHANNEL_BOOKMARK_SORTED: 'channel_bookmark_sorted',
+    CHANNEL_BOOKMARK_DELETED: 'channel_bookmark_deleted',
 };
 export default WebsocketEvents;

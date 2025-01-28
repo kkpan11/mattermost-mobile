@@ -1,9 +1,9 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import {Image} from 'expo-image';
 import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState} from 'react';
 import {BackHandler} from 'react-native';
-import FastImage, {type ImageStyle} from 'react-native-fast-image';
 import Animated, {runOnJS, runOnUI, useAnimatedReaction} from 'react-native-reanimated';
 
 import {useGallery} from '@context/gallery';
@@ -18,8 +18,7 @@ import GalleryViewer from './viewer';
 import type {ImageRendererProps} from './image_renderer';
 import type {GalleryItemType} from '@typings/screens/gallery';
 
-// @ts-expect-error FastImage does work with Animated.createAnimatedComponent
-const AnimatedImage = Animated.createAnimatedComponent(FastImage);
+const AnimatedImage = Animated.createAnimatedComponent(Image);
 
 interface GalleryProps {
     galleryIdentifier: string;
@@ -148,7 +147,7 @@ const Gallery = forwardRef<GalleryRef, GalleryProps>(({
             return (
                 <AnimatedImage
                     source={{uri: item.posterUri}}
-                    style={info.itemStyles as ImageStyle}
+                    style={info.itemStyles}
                 />
             );
         }

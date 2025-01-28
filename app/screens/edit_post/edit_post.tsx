@@ -18,6 +18,7 @@ import {useInputPropagation} from '@hooks/input';
 import useNavButtonPressed from '@hooks/navigation_button_pressed';
 import PostError from '@screens/edit_post/post_error';
 import {buildNavigationButton, dismissModal, setButtons} from '@screens/navigation';
+import {changeOpacity} from '@utils/theme';
 
 import EditPostInput, {type EditPostInputRef} from './edit_post_input';
 
@@ -102,6 +103,7 @@ const EditPost = ({componentId, maxPostSize, post, closeButtonId, hasFilesAttach
             rightButtons: [{
                 ...RIGHT_BUTTON,
                 color: theme.sidebarHeaderTextColor,
+                disabledColor: changeOpacity(theme.sidebarHeaderTextColor, 0.32),
                 text: intl.formatMessage({id: 'edit_post.save', defaultMessage: 'Save'}),
                 enabled,
             }],
@@ -110,13 +112,15 @@ const EditPost = ({componentId, maxPostSize, post, closeButtonId, hasFilesAttach
 
     const onChangeTextCommon = useCallback((message: string) => {
         const tooLong = message.trim().length > maxPostSize;
+        setErrorLine(undefined);
+        setErrorExtra(undefined);
         if (tooLong) {
             const line = intl.formatMessage({id: 'mobile.message_length.message_split_left', defaultMessage: 'Message exceeds the character limit'});
             const extra = `${message.trim().length} / ${maxPostSize}`;
             setErrorLine(line);
             setErrorExtra(extra);
         }
-        toggleSaveButton(editingMessage !== message);
+        toggleSaveButton(editingMessage !== message && !tooLong);
     }, [intl, maxPostSize, editingMessage, toggleSaveButton]);
 
     const onAutocompleteChangeText = useCallback((message: string) => {

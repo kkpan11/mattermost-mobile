@@ -1,10 +1,10 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import {Button} from '@rneui/base';
 import React, {useCallback, useEffect, useMemo, useReducer, useRef, useState} from 'react';
 import {useIntl} from 'react-intl';
 import {Keyboard, ScrollView, Text, View} from 'react-native';
-import Button from 'react-native-button';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {handleGotoLocation} from '@actions/remote/command';
@@ -20,6 +20,7 @@ import {buttonBackgroundStyle, buttonTextStyle} from '@utils/buttonStyles';
 import {checkDialogElementForError, checkIfErrorsMatchElements} from '@utils/integrations';
 import {getMarkdownBlockStyles, getMarkdownTextStyles} from '@utils/markdown';
 import {changeOpacity, makeStyleSheetFromTheme} from '@utils/theme';
+import {secureGetFromRecord} from '@utils/types';
 
 import DialogIntroductionText from '../interactive_dialog/dialog_introduction_text';
 import {buildNavigationButton, dismissModal, setButtons} from '../navigation';
@@ -263,7 +264,7 @@ function AppsFormComponent({
         elements?.forEach((element) => {
             const newError = checkDialogElementForError(
                 element,
-                element.name === form.submit_buttons ? button : values[element.name],
+                element.name === form.submit_buttons ? button : secureGetFromRecord(values, element.name),
             );
             if (newError) {
                 hasErrors = true;
@@ -408,13 +409,17 @@ function AppsFormComponent({
                     />
                 }
                 {form.fields && form.fields.filter((f) => f.name !== form.submit_buttons).map((field) => {
+                    const value = secureGetFromRecord(values, field.name);
+                    if (!value) {
+                        return null;
+                    }
                     return (
                         <AppsFormField
                             field={field}
                             key={field.name}
                             name={field.name}
-                            errorText={errors[field.name]}
-                            value={values[field.name]}
+                            errorText={secureGetFromRecord(errors, field.name)}
+                            value={value}
                             performLookup={performLookup}
                             onChange={onChange}
                         />
@@ -430,7 +435,7 @@ function AppsFormComponent({
                         >
                             <Button
                                 onPress={() => handleSubmit(o.value)}
-                                containerStyle={submitButtonStyle}
+                                buttonStyle={submitButtonStyle}
                             >
                                 <Text style={submitButtonTextStyle}>{o.label}</Text>
                             </Button>

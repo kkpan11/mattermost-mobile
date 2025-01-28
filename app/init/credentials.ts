@@ -5,7 +5,6 @@ import {Platform} from 'react-native';
 import * as KeyChain from 'react-native-keychain';
 
 import DatabaseManager from '@database/manager';
-import * as analytics from '@managers/analytics';
 import {logWarning} from '@utils/log';
 import {getIOSAppGroupDetails} from '@utils/mattermost_managed';
 
@@ -57,7 +56,7 @@ export const setServerCredentials = (serverUrl: string, token: string) => {
             accessGroup = appGroup.appGroupIdentifier;
         }
 
-        const options: KeyChain.Options = {
+        const options: KeyChain.SetOptions = {
             accessGroup,
             securityLevel: KeyChain.SECURITY_LEVEL.SECURE_SOFTWARE,
         };
@@ -68,16 +67,7 @@ export const setServerCredentials = (serverUrl: string, token: string) => {
 };
 
 export const removeServerCredentials = async (serverUrl: string) => {
-    const options: KeyChain.Options = {
-        securityLevel: KeyChain.SECURITY_LEVEL.SECURE_SOFTWARE,
-    };
-
-    if (Platform.OS === 'ios') {
-        const appGroup = getIOSAppGroupDetails();
-        options.accessGroup = appGroup.appGroupIdentifier;
-    }
-
-    await KeyChain.resetInternetCredentials(serverUrl, options);
+    return KeyChain.resetInternetCredentials(serverUrl);
 };
 
 export const removeActiveServerCredentials = async () => {
@@ -101,9 +91,6 @@ export const getServerCredentials = async (serverUrl: string): Promise<ServerCre
             const token = credentials.password;
 
             if (token && token !== 'undefined') {
-                const analyticsClient = analytics.get(serverUrl);
-                analyticsClient?.setUserId(userId);
-
                 return {serverUrl, userId, token};
             }
         }

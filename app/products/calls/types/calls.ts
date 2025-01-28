@@ -1,15 +1,24 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import type {CallRecordingState, CallsConfig, EmojiData, UserReactionData} from '@mattermost/calls/lib/types';
+import {
+    TranscribeAPI,
+    type CallJobState,
+    type CallsConfig,
+    type EmojiData,
+    type UserReactionData,
+} from '@mattermost/calls/lib/types';
+
 import type UserModel from '@typings/database/models/servers/user';
 
 export type GlobalCallsState = {
     micPermissionsGranted: boolean;
+    joiningChannelId: string | null;
 }
 
 export const DefaultGlobalCallsState: GlobalCallsState = {
     micPermissionsGranted: false,
+    joiningChannelId: null,
 };
 
 export type CallsState = {
@@ -24,25 +33,57 @@ export const DefaultCallsState: CallsState = {
     enabled: {},
 };
 
+export enum ChannelType {
+    DM,
+    GM
+}
+
+export type IncomingCallNotification = {
+    serverUrl: string;
+    myUserId: string;
+    callID: string;
+    channelID: string;
+    callerID: string;
+    callerModel?: UserModel;
+    startAt: number;
+    type: ChannelType;
+}
+
+export type IncomingCalls = {
+    incomingCalls: IncomingCallNotification[];
+    currentRingingCallId?: string;
+    callIdHasRung: Dictionary<boolean>;
+}
+
+export const DefaultIncomingCalls: IncomingCalls = {
+    incomingCalls: [],
+    callIdHasRung: {},
+};
+
 export type Call = {
-    participants: Dictionary<CallParticipant>;
+    id: string;
+    sessions: Dictionary<CallSession>;
     channelId: string;
     startTime: number;
     screenOn: string;
     threadId: string;
     ownerId: string;
-    recState?: CallRecordingState;
+    recState?: CallJobState;
+    capState?: CallJobState;
     hostId: string;
+    dismissed: Dictionary<boolean>;
 }
 
 export const DefaultCall: Call = {
-    participants: {},
+    id: '',
+    sessions: {},
     channelId: '',
     startTime: 0,
     screenOn: '',
     threadId: '',
     ownerId: '',
     hostId: '',
+    dismissed: {},
 };
 
 export enum AudioDevice {
@@ -57,6 +98,7 @@ export type CurrentCall = Call & {
     connected: boolean;
     serverUrl: string;
     myUserId: string;
+    mySessionId: string;
     screenShareURL: string;
     speakerphoneOn: boolean;
     audioDeviceInfo: AudioDeviceInfo;
@@ -65,6 +107,7 @@ export type CurrentCall = Call & {
     reactionStream: ReactionStreamEmoji[];
     callQualityAlert: boolean;
     callQualityAlertDismissed: number;
+    captions: Dictionary<LiveCaptionMobile>;
 }
 
 export const DefaultCurrentCall: CurrentCall = {
@@ -72,6 +115,7 @@ export const DefaultCurrentCall: CurrentCall = {
     connected: false,
     serverUrl: '',
     myUserId: '',
+    mySessionId: '',
     screenShareURL: '',
     speakerphoneOn: false,
     audioDeviceInfo: {availableAudioDeviceList: [], selectedAudioDevice: AudioDevice.None},
@@ -80,10 +124,12 @@ export const DefaultCurrentCall: CurrentCall = {
     reactionStream: [],
     callQualityAlert: false,
     callQualityAlertDismissed: 0,
+    captions: {},
 };
 
-export type CallParticipant = {
-    id: string;
+export type CallSession = {
+    sessionId: string;
+    userId: string;
     muted: boolean;
     raisedHand: number;
     userModel?: UserModel;
@@ -93,7 +139,7 @@ export type CallParticipant = {
 export type ChannelsWithCalls = Dictionary<boolean>;
 
 export type CallsConnection = {
-    disconnect: () => void;
+    disconnect: (err?: Error) => void;
     mute: () => void;
     unmute: () => void;
     waitForPeerConnection: () => Promise<void>;
@@ -105,12 +151,15 @@ export type CallsConnection = {
 
 export type CallsConfigState = CallsConfig & {
     AllowEnableCalls: boolean;
+    GroupCallsAllowed: boolean;
     pluginEnabled: boolean;
+    version: CallsVersion;
     last_retrieved_at: number;
 }
 
 export const DefaultCallsConfig: CallsConfigState = {
     pluginEnabled: false,
+    version: {},
     ICEServers: [], // deprecated
     ICEServersConfigs: [],
     AllowEnableCalls: false,
@@ -123,6 +172,14 @@ export const DefaultCallsConfig: CallsConfigState = {
     MaxRecordingDuration: 60,
     AllowScreenSharing: true,
     EnableSimulcast: false,
+    EnableRinging: false,
+    EnableTranscriptions: false,
+    EnableLiveCaptions: false,
+    HostControlsAllowed: false,
+    EnableAV1: false,
+    TranscribeAPI: TranscribeAPI.WhisperCPP,
+    GroupCallsAllowed: true, // Set to true to keep backward compatibility with older servers.
+    EnableDCSignaling: false,
 };
 
 export type ApiResp = {
@@ -153,3 +210,46 @@ export type AudioDeviceInfo = {
     availableAudioDeviceList: AudioDevice[];
     selectedAudioDevice: AudioDevice;
 };
+
+export type CallsVersion = {
+    version?: string;
+    build?: string;
+};
+
+export type LiveCaptionMobile = {
+    captionId: string;
+    sessionId: string;
+    userId: string;
+    text: string;
+}
+
+// DEPRECATED in favour of CallJobState since v2.16
+export type CallRecordingState = {
+    init_at: number;
+    start_at: number;
+    end_at: number;
+    err?: string;
+    error_at?: number;
+}
+
+export type CallRecordingStateData = {
+    recState: CallRecordingState;
+    callID: string;
+}
+
+// TODO: MM-57919, refactor wsmsg data to calls-common
+export type HostControlsMsgData = {
+    channel_id: string;
+    session_id: string;
+}
+
+export type HostControlsLowerHandMsgData = HostControlsMsgData & {
+    call_id: string;
+    host_id: string;
+}
+
+export enum EndCallReturn {
+    Cancel,
+    LeaveCall,
+    EndCall,
+}

@@ -4,22 +4,37 @@
 import React, {useCallback, useMemo} from 'react';
 import {FlatList, type ListRenderItemInfo, type StyleProp, type ViewStyle} from 'react-native';
 
+import FormattedText from '@components/formatted_text';
 import NoResultsWithTerm from '@components/no_results_with_term';
 import DateSeparator from '@components/post_list/date_separator';
 import PostWithChannelInfo from '@components/post_with_channel_info';
 import {Screens} from '@constants';
+import {ExtraKeyboardProvider} from '@context/extra_keyboard';
+import {useTheme} from '@context/theme';
+import {convertSearchTermToRegex, parseSearchTerms} from '@utils/markdown';
 import {getDateForDateLine, selectOrderedPosts} from '@utils/post_list';
 import {TabTypes} from '@utils/search';
+import {makeStyleSheetFromTheme} from '@utils/theme';
+import {typography} from '@utils/typography';
 
 import type {PostListItem, PostListOtherItem} from '@typings/components/post_list';
 import type PostModel from '@typings/database/models/servers/post';
+import type {SearchPattern} from '@typings/global/markdown';
+
+const getStyles = makeStyleSheetFromTheme((theme: Theme) => ({
+    resultsNumber: {
+        ...typography('Heading', 300),
+        padding: 20,
+        color: theme.centerChannelColor,
+    },
+}));
 
 type Props = {
     appsEnabled: boolean;
     customEmojiNames: string[];
     currentTimezone: string;
-    isTimezoneEnabled: boolean;
     posts: PostModel[];
+    matches?: SearchMatches;
     paddingTop: StyleProp<ViewStyle>;
     searchValue: string;
 }
@@ -28,13 +43,15 @@ const PostResults = ({
     appsEnabled,
     currentTimezone,
     customEmojiNames,
-    isTimezoneEnabled,
     posts,
+    matches,
     paddingTop,
     searchValue,
 }: Props) => {
-    const orderedPosts = useMemo(() => selectOrderedPosts(posts, 0, false, '', '', false, isTimezoneEnabled, currentTimezone, false).reverse(), [posts]);
-    const containerStyle = useMemo(() => ({top: posts.length ? 4 : 8, flexGrow: 1}), [posts]);
+    const theme = useTheme();
+    const styles = getStyles(theme);
+    const orderedPosts = useMemo(() => selectOrderedPosts(posts, 0, false, '', '', false, currentTimezone, false).reverse(), [posts]);
+    const containerStyle = useMemo(() => ([paddingTop, {flexGrow: 1}]), [paddingTop]);
 
     const renderItem = useCallback(({item}: ListRenderItemInfo<PostListItem | PostListOtherItem>) => {
         switch (item.type) {
@@ -43,24 +60,37 @@ const PostResults = ({
                     <DateSeparator
                         key={item.value}
                         date={getDateForDateLine(item.value)}
-                        timezone={isTimezoneEnabled ? currentTimezone : null}
+                        timezone={currentTimezone}
                     />
                 );
-            case 'post':
+            case 'post': {
+                const key = item.value.currentPost.id;
+                const hasPhrases = (/"([^"]*)"/).test(searchValue || '');
+                let searchPatterns: SearchPattern[] | undefined;
+                if (matches && !hasPhrases) {
+                    searchPatterns = matches?.[key]?.map(convertSearchTermToRegex);
+                } else {
+                    searchPatterns = parseSearchTerms(searchValue)?.map(convertSearchTermToRegex).sort((a, b) => {
+                        return b.term.length - a.term.length;
+                    });
+                }
+
                 return (
                     <PostWithChannelInfo
                         appsEnabled={appsEnabled}
                         customEmojiNames={customEmojiNames}
-                        key={item.value.currentPost.id}
+                        key={key}
                         location={Screens.SEARCH}
                         post={item.value.currentPost}
+                        searchPatterns={searchPatterns}
                         testID='search_results.post_list'
                     />
                 );
+            }
             default:
                 return null;
         }
-    }, [appsEnabled, customEmojiNames]);
+    }, [currentTimezone, searchValue, matches, appsEnabled, customEmojiNames]);
 
     const noResults = useMemo(() => (
         <NoResultsWithTerm
@@ -70,26 +100,35 @@ const PostResults = ({
     ), [searchValue]);
 
     return (
-        <FlatList
-            ListEmptyComponent={noResults}
-            contentContainerStyle={[paddingTop, containerStyle]}
-            data={orderedPosts}
-            indicatorStyle='black'
-            initialNumToRender={5}
+        <ExtraKeyboardProvider>
+            <FlatList
+                ListHeaderComponent={
+                    <FormattedText
+                        style={styles.resultsNumber}
+                        id='mobile.search.results'
+                        defaultMessage='{count} search {count, plural, one {result} other {results}}'
+                        values={{count: posts.length}}
+                    />
+                }
+                ListEmptyComponent={noResults}
+                contentContainerStyle={containerStyle}
+                data={orderedPosts}
+                indicatorStyle='black'
+                initialNumToRender={5}
 
-            //@ts-expect-error key not defined in types
-            listKey={'posts'}
-            maxToRenderPerBatch={5}
-            nestedScrollEnabled={true}
-            refreshing={false}
-            removeClippedSubviews={true}
-            renderItem={renderItem}
-            scrollEventThrottle={16}
-            scrollToOverflowEnabled={true}
-            showsVerticalScrollIndicator={true}
-            style={containerStyle}
-            testID='search_results.post_list.flat_list'
-        />
+                //@ts-expect-error key not defined in types
+                listKey={'posts'}
+                maxToRenderPerBatch={5}
+                nestedScrollEnabled={true}
+                refreshing={false}
+                removeClippedSubviews={true}
+                renderItem={renderItem}
+                scrollEventThrottle={16}
+                scrollToOverflowEnabled={true}
+                showsVerticalScrollIndicator={true}
+                testID='search_results.post_list.flat_list'
+            />
+        </ExtraKeyboardProvider>
     );
 };
 

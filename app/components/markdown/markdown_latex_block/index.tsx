@@ -6,11 +6,10 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import React, {useCallback, useMemo} from 'react';
 import {useIntl} from 'react-intl';
 import {Keyboard, View, Text, StyleSheet, Platform} from 'react-native';
-import MathView from 'react-native-math-view';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import FormattedText from '@components/formatted_text';
 import ErrorBoundary from '@components/markdown/error_boundary';
+import MathView from '@components/math_view';
 import SlideUpPanelItem, {ITEM_HEIGHT} from '@components/slide_up_panel_item';
 import TouchableWithFeedback from '@components/touchable_with_feedback';
 import {Screens} from '@constants';
@@ -90,7 +89,6 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
 
 const LatexCodeBlock = ({content, theme}: Props) => {
     const intl = useIntl();
-    const {bottom} = useSafeAreaInsets();
     const managedConfig = useManagedConfig<ManagedConfig>();
     const styles = getStyleSheet(theme);
     const languageDisplayName = getHighlightLanguageName('latex');
@@ -139,7 +137,7 @@ const LatexCodeBlock = ({content, theme}: Props) => {
                         style={styles.bottomSheet}
                     >
                         <SlideUpPanelItem
-                            icon='content-copy'
+                            leftIcon='content-copy'
                             onPress={() => {
                                 dismissBottomSheet();
                                 Clipboard.setString(content);
@@ -149,7 +147,7 @@ const LatexCodeBlock = ({content, theme}: Props) => {
                         />
                         <SlideUpPanelItem
                             destructive={true}
-                            icon='cancel'
+                            leftIcon='cancel'
                             onPress={dismissBottomSheet}
                             testID='at_mention.bottom_sheet.cancel'
                             text={intl.formatMessage({id: 'mobile.post.cancel', defaultMessage: 'Cancel'})}
@@ -161,12 +159,12 @@ const LatexCodeBlock = ({content, theme}: Props) => {
             bottomSheet({
                 closeButtonId: 'close-code-block',
                 renderContent,
-                snapPoints: [1, bottomSheetSnapPoint(2, ITEM_HEIGHT, bottom)],
+                snapPoints: [1, bottomSheetSnapPoint(2, ITEM_HEIGHT)],
                 title: intl.formatMessage({id: 'post.options.title', defaultMessage: 'Options'}),
                 theme,
             });
         }
-    }, [managedConfig?.copyAndPasteProtection, intl, bottom, theme]);
+    }, [managedConfig?.copyAndPasteProtection, intl, theme, styles.bottomSheet, content]);
 
     const onRenderErrorMessage = useCallback(({error}: {error: Error}) => {
         return <Text style={styles.errorText}>{'Render error: ' + error.message}</Text>;

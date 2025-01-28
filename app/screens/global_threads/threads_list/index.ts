@@ -1,8 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import {withDatabase} from '@nozbe/watermelondb/DatabaseProvider';
-import withObservables from '@nozbe/with-observables';
+import {withDatabase, withObservables} from '@nozbe/watermelondb/react';
 import {switchMap} from 'rxjs/operators';
 
 import {observeCurrentTeamId} from '@queries/servers/system';
@@ -33,7 +32,7 @@ const enhanced = withObservables(['tab', 'teamId'], ({database, tab, teamId}: Pr
         threads: teamThreadsSyncObserver.pipe(
             switchMap((teamThreadsSync) => {
                 const earliest = tab === 'all' ? teamThreadsSync?.[0]?.earliest : 0;
-                return queryThreadsInTeam(database, teamId, getOnlyUnreads, false, true, true, earliest).observe();
+                return queryThreadsInTeam(database, teamId, getOnlyUnreads, true, true, true, earliest).observe();
             }),
         ),
     };

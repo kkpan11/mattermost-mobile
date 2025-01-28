@@ -1,16 +1,14 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import React, {useCallback, useMemo, useRef} from 'react';
+import React, {useCallback, useRef} from 'react';
 import {useIntl} from 'react-intl';
 import {type LayoutChangeEvent, Platform, ScrollView, View} from 'react-native';
 import {type Edge, SafeAreaView} from 'react-native-safe-area-context';
 
-import {General} from '@constants';
-import {MENTIONS_REGEX} from '@constants/autocomplete';
-import {PostPriorityType} from '@constants/post';
 import {useServerUrl} from '@context/server';
 import {useTheme} from '@context/theme';
+import {usePersistentNotificationProps} from '@hooks/persistent_notification_props';
 import {persistentNotificationsConfirmation} from '@utils/post';
 import {changeOpacity, makeStyleSheetFromTheme} from '@utils/theme';
 
@@ -28,6 +26,7 @@ type Props = {
     testID?: string;
     channelId: string;
     channelType?: ChannelType;
+    channelName?: string;
     rootId?: string;
     currentUserId: string;
     canShowPostPriority?: boolean;
@@ -108,6 +107,7 @@ export default function DraftInput({
     testID,
     channelId,
     channelType,
+    channelName,
     currentUserId,
     canShowPostPriority,
     files,
@@ -147,28 +147,19 @@ export default function DraftInput({
     const sendActionTestID = `${testID}.send_action`;
     const style = getStyleSheet(theme);
 
-    const persistenNotificationsEnabled = postPriority.persistent_notifications && postPriority.priority === PostPriorityType.URGENT;
-    const {noMentionsError, mentionsList} = useMemo(() => {
-        let error = false;
-        let mentions: string[] = [];
-        if (
-            channelType !== General.DM_CHANNEL &&
-            persistenNotificationsEnabled
-        ) {
-            mentions = (value.match(MENTIONS_REGEX) || []);
-            error = mentions.length === 0;
-        }
-
-        return {noMentionsError: error, mentionsList: mentions};
-    }, [channelType, persistenNotificationsEnabled, value]);
+    const {persistentNotificationsEnabled, noMentionsError, mentionsList} = usePersistentNotificationProps({
+        value,
+        channelType,
+        postPriority,
+    });
 
     const handleSendMessage = useCallback(async () => {
-        if (persistenNotificationsEnabled) {
-            persistentNotificationsConfirmation(serverUrl, value, mentionsList, intl, sendMessage, persistentNotificationMaxRecipients, persistentNotificationInterval);
+        if (persistentNotificationsEnabled) {
+            persistentNotificationsConfirmation(serverUrl, value, mentionsList, intl, sendMessage, persistentNotificationMaxRecipients, persistentNotificationInterval, currentUserId, channelName, channelType);
         } else {
             sendMessage();
         }
-    }, [serverUrl, mentionsList, persistenNotificationsEnabled, persistentNotificationMaxRecipients, sendMessage, value]);
+    }, [serverUrl, mentionsList, persistentNotificationsEnabled, persistentNotificationMaxRecipients, sendMessage, value, channelType]);
 
     const sendActionDisabled = !canSend || noMentionsError;
 

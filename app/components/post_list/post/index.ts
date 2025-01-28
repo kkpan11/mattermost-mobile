@@ -1,8 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import {withDatabase} from '@nozbe/watermelondb/DatabaseProvider';
-import withObservables from '@nozbe/with-observables';
+import {withDatabase, withObservables} from '@nozbe/watermelondb/react';
 import React from 'react';
 import {of as of$, combineLatest} from 'rxjs';
 import {switchMap, distinctUntilChanged} from 'rxjs/operators';
@@ -155,6 +154,7 @@ const withPost = withObservables(
             post: post.observe(),
             thread: isCRTEnabled ? observeThreadById(database, post.id) : of$(undefined),
             hasReactions,
+            isLastPost: of$(!nextPost),
         };
     });
 

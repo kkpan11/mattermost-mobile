@@ -15,6 +15,7 @@ import {useIsTablet} from '@hooks/device';
 import {dismissOverlay} from '@screens/navigation';
 import {preventDoubleTap} from '@utils/tap';
 import {changeOpacity} from '@utils/theme';
+import {secureGetFromRecord} from '@utils/types';
 
 import Icon from './icon';
 import Server from './server';
@@ -61,6 +62,9 @@ const styles = StyleSheet.create({
     },
     touchable: {
         flexDirection: 'row',
+    },
+    gestureHandler: {
+        flex: 0,
     },
 });
 
@@ -145,10 +149,10 @@ const InAppNotification = ({componentId, serverName, serverUrl, notification}: I
     // eslint-disable-next-line new-cap
     const gesture = Gesture.Pan().activeOffsetY(-20).onStart(() => runOnJS(animateDismissOverlay)());
 
-    const database = DatabaseManager.serverDatabases[serverUrl]?.database;
+    const database = secureGetFromRecord(DatabaseManager.serverDatabases, serverUrl)?.database;
 
     return (
-        <GestureHandlerRootView>
+        <GestureHandlerRootView style={styles.gestureHandler}>
             <GestureDetector gesture={gesture}>
                 <Animated.View
                     style={[styles.container, isTablet ? styles.tablet : undefined, animatedStyle]}

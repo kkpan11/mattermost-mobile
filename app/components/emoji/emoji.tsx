@@ -1,16 +1,14 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import {withDatabase} from '@nozbe/watermelondb/DatabaseProvider';
-import withObservables from '@nozbe/with-observables';
+import {withDatabase, withObservables} from '@nozbe/watermelondb/react';
+import {Image} from 'expo-image';
 import React from 'react';
 import {
-    Image,
     Platform,
     StyleSheet,
     Text,
 } from 'react-native';
-import FastImage from 'react-native-fast-image';
 import {of as of$} from 'rxjs';
 import {switchMap} from 'rxjs/operators';
 
@@ -128,11 +126,11 @@ const Emoji = (props: EmojiProps) => {
     const key = Platform.OS === 'android' ? (`${imageUrl}-${height}-${width}`) : null;
 
     return (
-        <FastImage
+        <Image
             key={key}
             style={[commonStyle, imageStyle, {width, height}]}
             source={{uri: imageUrl}}
-            resizeMode={FastImage.resizeMode.contain}
+            contentFit='contain'
             testID={testID}
         />
     );

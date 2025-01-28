@@ -1,20 +1,25 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import {RTCMonitor, RTCPeer} from '@mattermost/calls/lib';
-import {deflate} from 'pako';
-import {DeviceEventEmitter, type EmitterSubscription, Platform} from 'react-native';
+import {RTCMonitor, RTCPeer, parseRTCStats} from '@mattermost/calls/lib';
+import {zlibSync, strToU8} from 'fflate';
+import {DeviceEventEmitter, type EmitterSubscription, NativeEventEmitter, NativeModules, Platform} from 'react-native';
 import InCallManager from 'react-native-incall-manager';
-import {mediaDevices, MediaStream, MediaStreamTrack, RTCPeerConnection} from 'react-native-webrtc';
+import {mediaDevices, MediaStream, MediaStreamTrack, registerGlobals, RTCSessionDescription} from 'react-native-webrtc';
 
 import {setPreferredAudioRoute, setSpeakerphoneOn} from '@calls/actions/calls';
+import {
+    foregroundServiceStart,
+    foregroundServiceStop,
+    foregroundServiceSetup,
+} from '@calls/connection/foreground_service';
 import {processMeanOpinionScore, setAudioDeviceInfo} from '@calls/state';
 import {AudioDevice, type AudioDeviceInfo, type AudioDeviceInfoRaw, type CallsConnection} from '@calls/types/calls';
 import {getICEServersConfigs} from '@calls/utils';
 import {WebsocketEvents} from '@constants';
 import {getServerCredentials} from '@init/credentials';
 import NetworkManager from '@managers/network_manager';
-import {getFullErrorMessage} from '@utils/errors';
+import {getErrorMessage, getFullErrorMessage} from '@utils/errors';
 import {logDebug, logError, logInfo, logWarning} from '@utils/log';
 
 import {WebSocketClient, wsReconnectionTimeoutErr} from './websocket_client';
@@ -22,12 +27,19 @@ import {WebSocketClient, wsReconnectionTimeoutErr} from './websocket_client';
 import type {EmojiData} from '@mattermost/calls/lib/types';
 
 const peerConnectTimeout = 5000;
-const rtcMonitorInterval = 4000;
+const rtcMonitorInterval = 10000;
+
+const InCallManagerEmitter = new NativeEventEmitter(NativeModules.InCallManager);
+
+// Setup the foreground service channel
+if (Platform.OS === 'android') {
+    foregroundServiceSetup();
+}
 
 export async function newConnection(
     serverUrl: string,
     channelID: string,
-    closeCb: () => void,
+    closeCb: (err?: Error) => void,
     setScreenShareURL: (url: string) => void,
     hasMicPermission: boolean,
     title?: string,
@@ -40,6 +52,7 @@ export async function newConnection(
     let isClosed = false;
     let onCallEnd: EmitterSubscription | null = null;
     let audioDeviceChanged: EmitterSubscription | null = null;
+    let wiredHeadsetEvent: EmitterSubscription | null = null;
     const streams: MediaStream[] = [];
     let rtcMonitor: RTCMonitor | null = null;
     const logger = {
@@ -63,13 +76,32 @@ export async function newConnection(
             voiceTrack.enabled = false;
             streams.push(stream);
         } catch (err) {
-            logError('Unable to get media device:', err);
+            logError('calls: unable to get media device:', err);
         }
     };
+
+    // Registering WebRTC globals (e.g. RTCPeerConnection)
+    registerGlobals();
 
     // getClient can throw an error, which will be handled by the caller.
     const client = NetworkManager.getClient(serverUrl);
     const credentials = await getServerCredentials(serverUrl);
+
+    let config;
+    try {
+        config = await client.getCallsConfig();
+    } catch (err) {
+        throw new Error(`calls: fetching calls config: ${getFullErrorMessage(err)}`);
+    }
+
+    let av1Support = false;
+    if (config.EnableAV1 && !config.EnableSimulcast) {
+        try {
+            av1Support = Boolean(await RTCPeer.getVideoCodec('video/AV1'));
+        } catch (err) {
+            throw new Error(`calls: failed to check AV1 support: ${getErrorMessage(err)}`);
+        }
+    }
 
     const ws = new WebSocketClient(serverUrl, client.getWebSocketUrl(), credentials?.token);
 
@@ -80,7 +112,7 @@ export async function newConnection(
         initializeVoiceTrack();
     }
 
-    const disconnect = () => {
+    const disconnect = (err?: Error) => {
         if (isClosed) {
             return;
         }
@@ -106,9 +138,14 @@ export async function newConnection(
         peer = null;
         InCallManager.stop();
         audioDeviceChanged?.remove();
+        wiredHeadsetEvent?.remove();
+
+        if (Platform.OS === 'android') {
+            foregroundServiceStop();
+        }
 
         if (closeCb) {
-            closeCb();
+            closeCb(err);
         }
     };
 
@@ -128,7 +165,7 @@ export async function newConnection(
                 peer.replaceTrack(voiceTrack.id, null);
             }
         } catch (e) {
-            logError('From RTCPeer:', e);
+            logError('calls: from RTCPeer, error on mute:', e);
             return;
         }
 
@@ -159,7 +196,7 @@ export async function newConnection(
                 voiceTrackAdded = true;
             }
         } catch (e) {
-            logError('From RTCPeer:', e);
+            logError('calls: from RTCPeer, error on unmute:', e);
             return;
         }
 
@@ -189,32 +226,105 @@ export async function newConnection(
         }
     };
 
-    ws.on('error', (err: Event) => {
+    const collectICEStats = () => {
+        const start = Date.now();
+        const seenMap: {[key: string]: string} = {};
+
+        const gatherStats = async () => {
+            if (!peer) {
+                return;
+            }
+
+            try {
+                const stats = parseRTCStats(await peer.getStats()).iceStats;
+                for (const state of Object.keys(stats)) {
+                    for (const pair of stats[state]) {
+                        const seenState = seenMap[pair.id];
+                        seenMap[pair.id] = pair.state;
+
+                        if (seenState !== pair.state) {
+                            logDebug('calls: ice candidate pair stats', JSON.stringify(pair));
+                        }
+
+                        if (seenState === 'succeeded' || state !== 'succeeded') {
+                            continue;
+                        }
+
+                        if (!pair.local || !pair.remote) {
+                            continue;
+                        }
+
+                        ws.send('metric', {
+                            metric_name: 'client_ice_candidate_pair',
+                            data: JSON.stringify({
+                                state: pair.state,
+                                local: {
+                                    type: pair.local.candidateType,
+                                    protocol: pair.local.protocol,
+                                },
+                                remote: {
+                                    type: pair.remote.candidateType,
+                                    protocol: pair.remote.protocol,
+                                },
+                            }),
+                        });
+                    }
+                }
+            } catch (err) {
+                logError('failed to parse ICE stats', err);
+            }
+
+            // Repeat the check for at most 30 seconds.
+            if (Date.now() < start + 30000) {
+                // We check every two seconds.
+                setTimeout(gatherStats, 2000);
+            }
+        };
+
+        gatherStats();
+    };
+
+    ws.on('error', (err: Error) => {
         logDebug('calls: ws error', err);
         if (err === wsReconnectionTimeoutErr) {
             disconnect();
         }
     });
 
-    ws.on('close', () => {
-        logDebug('calls: ws close');
+    ws.on('close', (event: WebSocketCloseEvent) => {
+        logDebug('calls: ws close, code:', event?.code, 'reason:', event?.reason, 'message:', event?.message);
+    });
+
+    ws.on('open', (originalConnID: string, prevConnID: string, isReconnect: boolean) => {
+        if (isReconnect) {
+            logDebug('calls: ws reconnect, sending reconnect msg');
+            ws.send('reconnect', {
+                channelID,
+                originalConnID,
+                prevConnID,
+            });
+        } else {
+            logDebug('calls: ws open, sending join msg');
+
+            ws.send('join', {
+                channelID,
+                title,
+                threadID: rootId,
+                av1Support,
+                dcSignaling: config.EnableDCSignaling,
+            });
+        }
     });
 
     ws.on('join', async () => {
-        let config;
-        try {
-            config = await client.getCallsConfig();
-        } catch (err) {
-            logError('FETCHING CALLS CONFIG:', getFullErrorMessage(err));
-            return;
-        }
+        logDebug('calls: join ack received, initializing connection');
 
         const iceConfigs = getICEServersConfigs(config);
         if (config.NeedsTURNCredentials) {
             try {
                 iceConfigs.push(...await client.genTURNCredentials());
             } catch (err) {
-                logWarning('failed to fetch TURN credentials:', getFullErrorMessage(err));
+                logWarning('calls: failed to fetch TURN credentials:', getFullErrorMessage(err));
             }
         }
 
@@ -224,39 +334,62 @@ export async function newConnection(
         let btInitialized = false;
         let speakerInitialized = false;
 
-        audioDeviceChanged = DeviceEventEmitter.addListener('onAudioDeviceChanged', (data: AudioDeviceInfoRaw) => {
-            const info: AudioDeviceInfo = {
-                availableAudioDeviceList: JSON.parse(data.availableAudioDeviceList),
-                selectedAudioDevice: data.selectedAudioDevice,
-            };
-            setAudioDeviceInfo(info);
+        if (Platform.OS === 'android') {
+            audioDeviceChanged = DeviceEventEmitter.addListener('onAudioDeviceChanged', (data: AudioDeviceInfoRaw) => {
+                const info: AudioDeviceInfo = {
+                    availableAudioDeviceList: JSON.parse(data.availableAudioDeviceList),
+                    selectedAudioDevice: data.selectedAudioDevice,
+                };
+                setAudioDeviceInfo(info);
+                logDebug('calls: AudioDeviceChanged, info:', info);
 
-            // Auto switch to bluetooth the first time we connect to bluetooth, but not after.
-            if (!btInitialized) {
-                if (info.availableAudioDeviceList.includes(AudioDevice.Bluetooth)) {
-                    setPreferredAudioRoute(AudioDevice.Bluetooth);
-                    btInitialized = true;
-                } else if (!speakerInitialized) {
-                    // If we don't have bluetooth available, default to speakerphone on.
-                    setPreferredAudioRoute(AudioDevice.Speakerphone);
-                    speakerInitialized = true;
+                // Auto switch to bluetooth the first time we connect to bluetooth, but not after.
+                if (!btInitialized) {
+                    if (info.availableAudioDeviceList.includes(AudioDevice.Bluetooth)) {
+                        setPreferredAudioRoute(AudioDevice.Bluetooth);
+                        btInitialized = true;
+                    } else if (!speakerInitialized) {
+                        // If we don't have bluetooth available, default to speakerphone on.
+                        setPreferredAudioRoute(AudioDevice.Speakerphone);
+                        speakerInitialized = true;
+                    }
                 }
-            }
-        });
+            });
 
-        // We default to speakerphone (Android is handled above in the onAudioDeviceChanged handler above).
+            // To allow us to use microphone in the background
+            await foregroundServiceStart();
+        }
+
+        // We default to speakerphone, but not if the WiredHeadset is plugged in.
         if (Platform.OS === 'ios') {
-            setSpeakerphoneOn(true);
+            wiredHeadsetEvent = InCallManagerEmitter.addListener('WiredHeadset', (data) => {
+                // Log for customer debugging. For the moment we're not changing output labels because of incall-manager iOS
+                // limitations with how it reports Bluetooth -- namely that it doesn't, so we don't know when Bluetooth is
+                // overriding the earpiece and/or headset.
+                logDebug('calls: WiredHeadset plugged in, data:', data);
+
+                // iOS switches to the headset when we connect it, so turn off speakerphone to keep UI in sync.
+                if (data.isPlugged) {
+                    setSpeakerphoneOn(false);
+                }
+            });
+
+            // If headset is plugged in when the call starts, use it.
+            const report = await InCallManager.getIsWiredHeadsetPluggedIn();
+            if (report.isWiredHeadsetPluggedIn) {
+                setSpeakerphoneOn(false);
+            } else {
+                setSpeakerphoneOn(true);
+            }
         }
 
         peer = new RTCPeer({
             iceServers: iceConfigs || [],
             logger,
-            webrtc: {
-                MediaStream,
-                RTCPeerConnection,
-            },
+            dcSignaling: config.EnableDCSignaling,
         });
+
+        collectICEStats();
 
         rtcMonitor = new RTCMonitor({
             peer,
@@ -265,19 +398,18 @@ export async function newConnection(
         });
         rtcMonitor.on('mos', processMeanOpinionScore);
 
-        peer.on('offer', (sdp) => {
-            logDebug(`local offer, sending: ${JSON.stringify(sdp)}`);
-            ws.send('sdp', {
-                data: deflate(JSON.stringify(sdp)),
-            }, true);
-        });
+        const sdpHandler = (sdp: RTCSessionDescription) => {
+            const payload = JSON.stringify(sdp);
 
-        peer.on('answer', (sdp) => {
-            logDebug(`local answer, sending: ${JSON.stringify(sdp)}`);
+            // SDP data is compressed using zlib since it's text based
+            // and can grow substantially, potentially hitting the maximum
+            // message size (8KB).
             ws.send('sdp', {
-                data: deflate(JSON.stringify(sdp)),
+                data: zlibSync(strToU8(payload)),
             }, true);
-        });
+        };
+        peer.on('offer', sdpHandler);
+        peer.on('answer', sdpHandler);
 
         peer.on('candidate', (candidate) => {
             ws.send('ice', {
@@ -293,9 +425,9 @@ export async function newConnection(
         });
 
         peer.on('stream', (remoteStream: MediaStream) => {
-            logDebug('new remote stream received', remoteStream.id);
+            logDebug('calls: new remote stream received', remoteStream.id);
             for (const track of remoteStream.getTracks()) {
-                logDebug('remote track', track.id);
+                logDebug('calls: remote track', track.id);
             }
 
             streams.push(remoteStream);
@@ -312,25 +444,11 @@ export async function newConnection(
         });
     });
 
-    ws.on('open', (originalConnID: string, prevConnID: string, isReconnect: boolean) => {
-        if (isReconnect) {
-            logDebug('calls: ws reconnect, sending reconnect msg');
-            ws.send('reconnect', {
-                channelID,
-                originalConnID,
-                prevConnID,
-            });
-        } else {
-            ws.send('join', {
-                channelID,
-                title,
-                threadID: rootId,
-            });
-        }
-    });
-
     ws.on('message', ({data}: { data: string }) => {
         const msg = JSON.parse(data);
+        if (!msg) {
+            return;
+        }
         if (msg.type === 'answer' || msg.type === 'candidate' || msg.type === 'offer') {
             peer?.signal(data);
         }

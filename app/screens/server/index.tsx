@@ -7,16 +7,17 @@ import {useIntl} from 'react-intl';
 import {Alert, BackHandler, Platform, useWindowDimensions, View} from 'react-native';
 import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
 import {Navigation} from 'react-native-navigation';
-import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
+import Animated, {ReduceMotion, useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {doPing} from '@actions/remote/general';
 import {fetchConfigAndLicense} from '@actions/remote/systems';
 import LocalConfig from '@assets/config.json';
 import AppVersion from '@components/app_version';
-import {Screens, Launch} from '@constants';
+import {Screens, Launch, DeepLink} from '@constants';
 import useNavButtonPressed from '@hooks/navigation_button_pressed';
 import {t} from '@i18n';
+import {getServerCredentials} from '@init/credentials';
 import PushNotifications from '@init/push_notifications';
 import NetworkManager from '@managers/network_manager';
 import {getServerByDisplayName, getServerByIdentifier} from '@queries/app/servers';
@@ -135,7 +136,7 @@ const Server = ({
             // If no other servers are allowed or the local config for AutoSelectServerUrl is set, attempt to connect
             handleConnect(managedConfig?.serverUrl || LocalConfig.DefaultServerUrl);
         }
-    }, [managedConfig?.allowOtherServers, managedConfig?.serverUrl, managedConfig?.serverName]);
+    }, [managedConfig?.allowOtherServers, managedConfig?.serverUrl, managedConfig?.serverName, defaultServerUrl]);
 
     useEffect(() => {
         if (url && displayName) {
@@ -209,6 +210,12 @@ const Server = ({
             passProps.ssoType = enabledSSOs[0];
         }
 
+        // if deeplink is of type server removing the deeplink info on new login
+        if (extra?.type === DeepLink.Server) {
+            passProps.extra = undefined;
+            passProps.launchType = Launch.Normal;
+        }
+
         goToScreen(screen, '', passProps, loginAnimationOptions());
         setConnecting(false);
         setButtonDisabled(false);
@@ -244,7 +251,8 @@ const Server = ({
         }
 
         const server = await getServerByDisplayName(displayName);
-        if (server && server.lastActiveAt > 0) {
+        const credentials = await getServerCredentials(serverUrl);
+        if (server && server.lastActiveAt > 0 && credentials?.token) {
             setButtonDisabled(true);
             setDisplayNameError(formatMessage({
                 id: 'mobile.server_name.exists',
@@ -288,27 +296,34 @@ const Server = ({
             cancelPing = undefined;
         };
 
-        const serverUrl = await getServerUrlAfterRedirect(pingUrl, !retryWithHttp);
-        const result = await doPing(serverUrl, true, managedConfig?.timeout ? parseInt(managedConfig?.timeout, 10) : undefined);
+        const ping = await getServerUrlAfterRedirect(pingUrl, !retryWithHttp);
+        if (!ping.url) {
+            cancelPing();
+            if (retryWithHttp) {
+                const nurl = pingUrl.replace('https:', 'http:');
+                pingServer(nurl, false);
+            } else {
+                setUrlError(getErrorMessage(ping.error, intl));
+                setButtonDisabled(true);
+                setConnecting(false);
+            }
+            return;
+        }
+        const result = await doPing(ping.url, true, managedConfig?.timeout ? parseInt(managedConfig?.timeout, 10) : undefined);
 
         if (canceled) {
             return;
         }
 
         if (result.error) {
-            if (retryWithHttp) {
-                const nurl = serverUrl.replace('https:', 'http:');
-                pingServer(nurl, false);
-            } else {
-                setUrlError(getErrorMessage(result.error, intl));
-                setButtonDisabled(true);
-                setConnecting(false);
-            }
+            setUrlError(getErrorMessage(result.error, intl));
+            setButtonDisabled(true);
+            setConnecting(false);
             return;
         }
 
-        canReceiveNotifications(serverUrl, result.canReceiveNotifications as string, intl);
-        const data = await fetchConfigAndLicense(serverUrl, true);
+        canReceiveNotifications(ping.url, result.canReceiveNotifications as string, intl);
+        const data = await fetchConfigAndLicense(ping.url, true);
         if (data.error) {
             setButtonDisabled(true);
             setUrlError(getErrorMessage(data.error, intl));
@@ -326,9 +341,10 @@ const Server = ({
         }
 
         const server = await getServerByIdentifier(data.config.DiagnosticId);
+        const credentials = await getServerCredentials(ping.url);
         setConnecting(false);
 
-        if (server && server.lastActiveAt > 0) {
+        if (server && server.lastActiveAt > 0 && credentials?.token) {
             setButtonDisabled(true);
             setUrlError(formatMessage({
                 id: 'mobile.server_identifier.exists',
@@ -337,13 +353,13 @@ const Server = ({
             return;
         }
 
-        displayLogin(serverUrl, data.config!, data.license!);
+        displayLogin(ping.url, data.config!, data.license!);
     };
 
     const transform = useAnimatedStyle(() => {
         const duration = Platform.OS === 'android' ? 250 : 350;
         return {
-            transform: [{translateX: withTiming(translateX.value, {duration})}],
+            transform: [{translateX: withTiming(translateX.value, {duration, reduceMotion: ReduceMotion.Never})}],
         };
     }, []);
 
@@ -360,7 +376,7 @@ const Server = ({
                 <KeyboardAwareScrollView
                     bounces={false}
                     contentContainerStyle={styles.scrollContainer}
-                    enableAutomaticScroll={Platform.OS === 'android'}
+                    enableAutomaticScroll={false}
                     enableOnAndroid={false}
                     enableResetScrollToCoords={true}
                     extraScrollHeight={20}
@@ -384,7 +400,6 @@ const Server = ({
                         handleConnect={handleConnect}
                         handleDisplayNameTextChanged={handleDisplayNameTextChanged}
                         handleUrlTextChanged={handleUrlTextChanged}
-                        isModal={isModal}
                         keyboardAwareRef={keyboardAwareRef}
                         theme={theme}
                         url={url}

@@ -5,6 +5,7 @@ import moment from 'moment-timezone';
 import {Alert} from 'react-native';
 
 import {General, Permissions, Preferences} from '@constants';
+import {Ringtone} from '@constants/calls';
 import {CustomStatusDurationEnum} from '@constants/custom_status';
 import {DEFAULT_LOCALE, getLocalizedMessage, t} from '@i18n';
 import {toTitleCase} from '@utils/helpers';
@@ -234,6 +235,10 @@ export function isShared(user: UserProfile | UserModel): boolean {
     return ('remoteId' in user) ? Boolean(user.remoteId) : Boolean(user.remote_id);
 }
 
+export function isDeactivated(user: UserProfile | UserModel): boolean {
+    return Boolean('deleteAt' in user ? user.deleteAt : user.delete_at);
+}
+
 export function removeUserFromList(userId: string, originalList: UserProfile[]): UserProfile[] {
     const list = [...originalList];
     for (let i = list.length - 1; i >= 0; i--) {
@@ -329,11 +334,16 @@ export function getNotificationProps(user?: UserModel) {
         email: 'true',
         first_name: (!user || !user.firstName) ? 'false' : 'true',
         mark_unread: 'all',
-        mention_keys: user ? `${user.username},@${user.username}` : '',
+        mention_keys: user?.username ? `${user.username},@${user.username}` : '',
+        highlight_keys: '',
         push: 'mention',
         push_status: 'online',
         push_threads: 'all',
         email_threads: 'all',
+        calls_desktop_sound: 'true',
+        calls_notification_sound: Ringtone.Calm,
+        calls_mobile_sound: '',
+        calls_mobile_notification_sound: '',
     };
 
     return props;
@@ -374,4 +384,12 @@ export const getEmailIntervalTexts = (interval: string) => {
         [Preferences.INTERVAL_NEVER]: {id: 'notification_settings.email.never', defaultMessage: 'Never'},
     };
     return intervalTexts[interval];
+};
+
+export const getLastPictureUpdate = (user: UserModel | UserProfile) => {
+    if ('isBot' in user) {
+        return user.isBot ? user.props?.bot_last_icon_update : user.lastPictureUpdate || 0;
+    }
+
+    return user.is_bot ? user.bot_last_icon_update : user.last_picture_update || 0;
 };

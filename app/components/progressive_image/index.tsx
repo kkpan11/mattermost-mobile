@@ -1,21 +1,14 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import {Image, ImageBackground, type ImageContentFit, type ImageStyle} from 'expo-image';
 import React, {type ReactNode, useEffect, useState} from 'react';
-import {ImageBackground, type ImageStyle, type StyleProp, StyleSheet, View, type ViewStyle, Image} from 'react-native';
-import FastImage, {type ResizeMode} from 'react-native-fast-image';
-import Animated, {interpolate, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming} from 'react-native-reanimated';
+import {type StyleProp, StyleSheet, View, type ViewStyle} from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import {useTheme} from '@context/theme';
-import {emptyFunction} from '@utils/general';
 import {changeOpacity, makeStyleSheetFromTheme} from '@utils/theme';
 
-import Thumbnail from './thumbnail';
-
-const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground);
-
-// @ts-expect-error FastImage does work with Animated.createAnimatedComponent
-const AnimatedFastImage = Animated.createAnimatedComponent(FastImage);
 const AnimatedImage = Animated.createAnimatedComponent(Image);
 
 type Props = ProgressiveImageProps & {
@@ -25,7 +18,7 @@ type Props = ProgressiveImageProps & {
     imageStyle?: StyleProp<ImageStyle>;
     isBackgroundImage?: boolean;
     onError: () => void;
-    resizeMode?: ResizeMode;
+    contentFit?: ImageContentFit;
     style?: StyleProp<ViewStyle>;
     tintDefaultSource?: boolean;
 };
@@ -46,50 +39,29 @@ const getStyleSheet = makeStyleSheetFromTheme((theme) => {
 
 const ProgressiveImage = ({
     children, defaultSource, forwardRef, id, imageStyle, imageUri, inViewPort, isBackgroundImage,
-    onError, resizeMode = 'contain', style = {}, thumbnailUri, tintDefaultSource,
+    onError, contentFit = 'contain', style = {}, thumbnailUri, tintDefaultSource,
 }: Props) => {
     const [showHighResImage, setShowHighResImage] = useState(false);
     const theme = useTheme();
     const styles = getStyleSheet(theme);
-    const intensity = useSharedValue(0);
-
-    const defaultOpacity = useDerivedValue(() => (
-        interpolate(
-            intensity.value,
-            [0, 100],
-            [0.5, 0],
-        )
-    ), []);
-
-    const onLoadImageEnd = () => {
-        intensity.value = withTiming(100, {duration: 300});
-    };
-
-    const animatedOpacity = useAnimatedStyle(() => ({
-        opacity: interpolate(
-            intensity.value,
-            [200, 100],
-            [0.2, 1],
-        ),
-    }));
 
     useEffect(() => {
         if (inViewPort) {
-            setShowHighResImage(true);
+            setShowHighResImage(inViewPort);
         }
     }, [inViewPort]);
 
     if (isBackgroundImage && imageUri) {
         return (
             <View style={[styles.defaultImageContainer, style]}>
-                <AnimatedImageBackground
+                <ImageBackground
                     key={id}
                     source={{uri: imageUri}}
-                    resizeMode={'cover'}
-                    style={[StyleSheet.absoluteFill, imageStyle]}
+                    contentFit='cover'
+                    style={[StyleSheet.absoluteFill, imageStyle as StyleProp<ViewStyle>]}
                 >
                     {children}
-                </AnimatedImageBackground>
+                </ImageBackground>
             </View>
         );
     }
@@ -105,68 +77,31 @@ const ProgressiveImage = ({
                         imageStyle,
                         tintDefaultSource ? styles.defaultImageTint : null,
                     ]}
-                    resizeMode={resizeMode}
+                    contentFit={contentFit}
                     onError={onError}
                     nativeID={`image-${id}`}
+                    recyclingKey={`image-${id}`}
                 />
             </View>
         );
     }
 
-    const containerStyle = {backgroundColor: changeOpacity(theme.centerChannelColor, Number(defaultOpacity.value))};
-
-    let image;
-    if (thumbnailUri) {
-        if (showHighResImage && imageUri) {
-            image = (
-                <AnimatedFastImage
-                    ref={forwardRef}
-                    nativeID={`image-${id}`}
-                    resizeMode={resizeMode}
-                    onError={onError}
-                    source={{uri: imageUri}}
-                    style={[
-                        StyleSheet.absoluteFill,
-                        imageStyle,
-                        animatedOpacity,
-                    ]}
-                    testID='progressive_image.highResImage'
-                    onLoadEnd={onLoadImageEnd}
-                />
-            );
-        }
-    } else if (imageUri) {
-        image = (
-            <AnimatedFastImage
-                ref={forwardRef}
-                nativeID={`image-${id}`}
-                resizeMode={resizeMode}
-                onError={onError}
-                source={{uri: imageUri}}
-                style={[StyleSheet.absoluteFill, imageStyle, animatedOpacity]}
-                onLoadEnd={onLoadImageEnd}
-                testID='progressive_image.highResImage'
-            />
-        );
-    }
+    const showImage = showHighResImage || !thumbnailUri;
 
     return (
-        <Animated.View
-            style={[styles.defaultImageContainer, style, containerStyle]}
-        >
-            {Boolean(thumbnailUri) &&
-            <Thumbnail
-                onError={emptyFunction}
-                opacity={defaultOpacity}
-                source={{uri: thumbnailUri}}
-                style={[
-                    thumbnailUri ? StyleSheet.absoluteFill : undefined,
-                    imageStyle,
-                ]}
-                tintColor={thumbnailUri ? undefined : theme.centerChannelColor}
+        <Animated.View style={[styles.defaultImageContainer, style]}>
+            <Image
+                ref={forwardRef}
+                placeholder={{uri: thumbnailUri}}
+                placeholderContentFit='cover'
+                nativeID={`image-${id}`}
+                recyclingKey={`image-${id}`}
+                testID='progressive_image.highResImage'
+                transition={300}
+                style={[StyleSheet.absoluteFill, imageStyle]}
+                source={(showImage) ? {uri: imageUri} : undefined}
+                autoplay={true}
             />
-            }
-            {image}
         </Animated.View>
     );
 };

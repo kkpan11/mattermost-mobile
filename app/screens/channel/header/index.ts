@@ -1,14 +1,14 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import {withDatabase} from '@nozbe/watermelondb/DatabaseProvider';
-import withObservables from '@nozbe/with-observables';
+import {withDatabase, withObservables} from '@nozbe/watermelondb/react';
 import React from 'react';
 import {of as of$} from 'rxjs';
-import {combineLatestWith, switchMap} from 'rxjs/operators';
+import {combineLatestWith, distinctUntilChanged, switchMap} from 'rxjs/operators';
 
 import {General} from '@constants';
 import {observeChannel, observeChannelInfo} from '@queries/servers/channel';
+import {observeCanAddBookmarks, queryBookmarks} from '@queries/servers/channel_bookmark';
 import {observeConfigBooleanValue, observeCurrentTeamId, observeCurrentUserId} from '@queries/servers/system';
 import {observeUser} from '@queries/servers/user';
 import {
@@ -78,11 +78,21 @@ const enhanced = withObservables(['channelId'], ({channelId, database}: OwnProps
     const memberCount = channelInfo.pipe(
         combineLatestWith(dmUser),
         switchMap(([ci, dm]) => of$(dm ? undefined : ci?.memberCount)));
+    const hasBookmarks = queryBookmarks(database, channelId).observeCount(false).pipe(
+        switchMap((count) => of$(count > 0)),
+        distinctUntilChanged(),
+    );
+
+    const isBookmarksEnabled = observeConfigBooleanValue(database, 'FeatureFlagChannelBookmarks');
+    const canAddBookmarks = observeCanAddBookmarks(database, channelId);
 
     return {
+        canAddBookmarks,
         channelType,
         customStatus,
         displayName,
+        hasBookmarks,
+        isBookmarksEnabled,
         isCustomStatusEnabled,
         isCustomStatusExpired,
         isOwnDirectMessage,

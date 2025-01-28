@@ -39,7 +39,7 @@ class LoginScreen {
     signinButtonDisabled = element(by.id(this.testID.signinButtonDisabled));
 
     toBeVisible = async () => {
-        await wait(timeouts.ONE_SEC);
+        await wait(timeouts.FOUR_SEC);
         await waitFor(this.loginScreen).toExist().withTimeout(timeouts.TEN_SEC);
         await waitFor(this.usernameInput).toBeVisible().withTimeout(timeouts.TEN_SEC);
 
@@ -60,10 +60,26 @@ class LoginScreen {
 
     login = async (user: any = {}) => {
         await this.toBeVisible();
+
+        await this.usernameInput.tap({x: 150, y: 10});
+        await this.usernameInput.replaceText(user.newUser.email);
+        await this.passwordInput.tap();
+        await this.passwordInput.replaceText(user.newUser.password);
+        await element(by.text(/^Log In to Your Account*$/)).tap();
+        await this.signinButton.tap();
+
+        await wait(timeouts.FOUR_SEC);
+    };
+
+    loginAsAdmin = async (user: any = {}) => {
+        await this.toBeVisible();
+        await this.usernameInput.tap({x: 150, y: 10});
+
         await this.usernameInput.replaceText(user.username);
+        await this.passwordInput.tap();
         await this.passwordInput.replaceText(user.password);
         await this.signinButton.tap();
-        await wait(timeouts.ONE_SEC);
+        await wait(timeouts.FOUR_SEC);
     };
 }
 

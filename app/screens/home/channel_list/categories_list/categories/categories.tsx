@@ -3,13 +3,16 @@
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useIntl} from 'react-intl';
-import {FlatList, StyleSheet, View} from 'react-native';
+import {DeviceEventEmitter, FlatList, StyleSheet, View} from 'react-native';
 
 import {switchToChannelById} from '@actions/remote/channel';
 import Loading from '@components/loading';
+import {Events} from '@constants';
+import {CHANNEL} from '@constants/screens';
 import {useServerUrl} from '@context/server';
 import {useIsTablet} from '@hooks/device';
 import {useTeamSwitch} from '@hooks/team_switch';
+import PerformanceMetricsManager from '@managers/performance_metrics_manager';
 
 import CategoryBody from './body';
 import LoadCategoriesError from './error';
@@ -49,21 +52,27 @@ const Categories = ({
     const isTablet = useIsTablet();
     const switchingTeam = useTeamSwitch();
     const teamId = categories[0]?.teamId;
+    const showOnlyUnreadsCategory = onlyUnreads && !unreadsOnTop;
+
     const categoriesToShow = useMemo(() => {
-        if (onlyUnreads && !unreadsOnTop) {
+        if (showOnlyUnreadsCategory) {
             return ['UNREADS' as const];
         }
+
         const orderedCategories = [...categories];
         orderedCategories.sort((a, b) => a.sortOrder - b.sortOrder);
+
         if (unreadsOnTop) {
             return ['UNREADS' as const, ...orderedCategories];
         }
         return orderedCategories;
-    }, [categories, onlyUnreads, unreadsOnTop]);
+    }, [categories, unreadsOnTop, showOnlyUnreadsCategory]);
 
     const [initiaLoad, setInitialLoad] = useState(!categoriesToShow.length);
 
     const onChannelSwitch = useCallback(async (c: Channel | ChannelModel) => {
+        DeviceEventEmitter.emit(Events.ACTIVE_SCREEN, CHANNEL);
+        PerformanceMetricsManager.startMetric('mobile_channel_switch');
         switchToChannelById(serverUrl, c.id);
     }, [serverUrl]);
 
@@ -74,7 +83,7 @@ const Categories = ({
                     currentTeamId={teamId}
                     isTablet={isTablet}
                     onChannelSwitch={onChannelSwitch}
-                    onlyUnreads={onlyUnreads}
+                    onlyUnreads={showOnlyUnreadsCategory}
                 />
             );
         }
@@ -89,7 +98,7 @@ const Categories = ({
                 />
             </>
         );
-    }, [teamId, intl.locale, isTablet, onChannelSwitch, onlyUnreads]);
+    }, [teamId, intl.locale, isTablet, onChannelSwitch, showOnlyUnreadsCategory]);
 
     useEffect(() => {
         const t = setTimeout(() => {
@@ -99,23 +108,31 @@ const Categories = ({
         return () => clearTimeout(t);
     }, []);
 
+    useEffect(() => {
+        if (switchingTeam) {
+            return;
+        }
+
+        PerformanceMetricsManager.endMetric('mobile_team_switch', serverUrl);
+    }, [switchingTeam]);
+
     if (!categories.length) {
         return <LoadCategoriesError/>;
     }
 
     return (
         <>
-            {!switchingTeam && !initiaLoad && onlyUnreads &&
+            {!switchingTeam && !initiaLoad && showOnlyUnreadsCategory &&
             <View style={styles.mainList}>
                 <UnreadCategories
                     currentTeamId={teamId}
                     isTablet={isTablet}
                     onChannelSwitch={onChannelSwitch}
-                    onlyUnreads={onlyUnreads}
+                    onlyUnreads={showOnlyUnreadsCategory}
                 />
             </View>
             }
-            {!switchingTeam && !initiaLoad && !onlyUnreads && (
+            {!switchingTeam && !initiaLoad && !showOnlyUnreadsCategory && (
                 <FlatList
                     data={categoriesToShow}
                     ref={listRef}
@@ -135,6 +152,7 @@ const Categories = ({
                     <Loading
                         size='large'
                         themeColor='sidebarText'
+                        testID='categories.loading'
                     />
                 </View>
             )}

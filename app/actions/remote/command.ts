@@ -82,7 +82,7 @@ export const executeCommand = async (serverUrl: string, intl: IntlShape, message
     return {data};
 };
 
-const executeAppCommand = async (serverUrl: string, intl: IntlShape, parser: AppCommandParser, msg: string, args: CommandArgs) => {
+export const executeAppCommand = async (serverUrl: string, intl: IntlShape, parser: AppCommandParser, msg: string, args: CommandArgs) => {
     const {creq, errorMessage} = await parser.composeCommandSubmitCall(msg);
     const createErrorMessage = (errMessage: string) => {
         return {error: {message: errMessage}};
@@ -143,7 +143,7 @@ export const handleGotoLocation = async (serverUrl: string, intl: IntlShape, loc
     const match = matchDeepLink(location, serverUrl, config?.SiteURL);
 
     if (match) {
-        handleDeepLink(match, intl, location);
+        handleDeepLink(match.url, intl, location);
     } else {
         const {formatMessage} = intl;
         const onError = () => Alert.alert(

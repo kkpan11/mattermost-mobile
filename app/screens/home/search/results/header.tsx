@@ -3,7 +3,6 @@
 import React, {useCallback, useMemo} from 'react';
 import {useIntl} from 'react-intl';
 import {View} from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import Badge from '@components/badge';
 import CompassIcon from '@components/compass_icon';
@@ -27,8 +26,6 @@ type Props = {
     onFilterChanged: (filter: FileFilter) => void;
     selectedTab: TabType;
     selectedFilter: FileFilter;
-    numberMessages: number;
-    numberFiles: number;
     setTeamId: (id: string) => void;
     teamId: string;
     teams: TeamModel[];
@@ -65,8 +62,6 @@ const Header = ({
     setTeamId,
     onTabSelect,
     onFilterChanged,
-    numberMessages,
-    numberFiles,
     selectedTab,
     selectedFilter,
     teams,
@@ -74,7 +69,6 @@ const Header = ({
     const theme = useTheme();
     const styles = getStyleFromTheme(theme);
     const intl = useIntl();
-    const {bottom} = useSafeAreaInsets();
     const isTablet = useIsTablet();
 
     const messagesText = intl.formatMessage({id: 'screen.search.header.messages', defaultMessage: 'Messages'});
@@ -98,10 +92,9 @@ const Header = ({
             bottomSheetSnapPoint(
                 NUMBER_FILTER_ITEMS,
                 FILTER_ITEM_HEIGHT,
-                bottom,
             ) + TITLE_HEIGHT + DIVIDERS_HEIGHT + (isTablet ? TITLE_SEPARATOR_MARGIN_TABLET : TITLE_SEPARATOR_MARGIN),
         ];
-    }, []);
+    }, [isTablet]);
 
     const handleFilterPress = useCallback(() => {
         const renderContent = () => {
@@ -122,7 +115,7 @@ const Header = ({
         });
     }, [onFilterChanged, selectedFilter]);
 
-    const filterStyle = useMemo(() => ({marginRight: teams.length > 1 ? 0 : 10}), [teams.length > 1]);
+    const filterStyle = useMemo(() => ({marginRight: teams.length > 1 ? 0 : 8}), [teams.length > 1]);
 
     return (
         <View style={styles.container}>
@@ -130,39 +123,42 @@ const Header = ({
                 <SelectButton
                     selected={selectedTab === TabTypes.MESSAGES}
                     onPress={handleMessagesPress}
-                    text={`${messagesText} (${numberMessages})`}
+                    text={messagesText}
                 />
                 <SelectButton
                     selected={selectedTab === TabTypes.FILES}
                     onPress={handleFilesPress}
-                    text={`${filesText} (${numberFiles})`}
+                    text={filesText}
                 />
                 <View style={styles.iconsContainer}>
-                    {showFilterIcon &&
-                    <View style={filterStyle}>
-                        <CompassIcon
-                            name={'filter-variant'}
-                            size={24}
-                            color={changeOpacity(theme.centerChannelColor, 0.56)}
-                            onPress={handleFilterPress}
+                    {showFilterIcon && (
+                        <View style={filterStyle}>
+                            <CompassIcon
+                                name={'filter-variant'}
+                                size={24}
+                                color={changeOpacity(
+                                    theme.centerChannelColor,
+                                    0.56,
+                                )}
+                                onPress={handleFilterPress}
+                            />
+                            <Badge
+                                style={styles.badge}
+                                visible={hasFilters}
+                                testID={'search.filters.badge'}
+                                value={-1}
+                            />
+                        </View>
+                    )}
+                    {teams.length > 1 && (
+                        <TeamPickerIcon
+                            size={32}
+                            divider={true}
+                            setTeamId={setTeamId}
+                            teamId={teamId}
+                            teams={teams}
                         />
-                        <Badge
-                            style={styles.badge}
-                            visible={hasFilters}
-                            testID={'search.filters.badge'}
-                            value={-1}
-                        />
-                    </View>
-                    }
-                    {teams.length > 1 &&
-                    <TeamPickerIcon
-                        size={32}
-                        divider={true}
-                        setTeamId={setTeamId}
-                        teamId={teamId}
-                        teams={teams}
-                    />
-                    }
+                    )}
                 </View>
             </View>
         </View>
@@ -170,4 +166,3 @@ const Header = ({
 };
 
 export default Header;
-

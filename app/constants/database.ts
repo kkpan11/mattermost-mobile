@@ -13,6 +13,7 @@ export const MM_TABLES = {
         CATEGORY: 'Category',
         CATEGORY_CHANNEL: 'CategoryChannel',
         CHANNEL: 'Channel',
+        CHANNEL_BOOKMARK: 'ChannelBookmark',
         CHANNEL_INFO: 'ChannelInfo',
         CHANNEL_MEMBERSHIP: 'ChannelMembership',
         CONFIG: 'Config',
@@ -80,6 +81,9 @@ export const GLOBAL_IDENTIFIERS = {
     FIRST_LAUNCH: 'firstLaunch',
     LAST_ASK_FOR_REVIEW: 'lastAskForReview',
     ONBOARDING: 'onboarding',
+    LAST_VIEWED_CHANNEL: 'lastViewedChannel',
+    LAST_VIEWED_THREAD: 'lastViewedThread',
+    PUSH_DISABLED_ACK: 'pushDisabledAck',
 };
 
 export enum OperationType {

@@ -1,6 +1,8 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import {BehaviorSubject} from 'rxjs';
+
 import type {AvailableScreens} from '@typings/screens/navigation';
 
 class NavigationStore {
@@ -8,6 +10,20 @@ class NavigationStore {
     private modalsInStack: AvailableScreens[] = [];
     private visibleTab = 'Home';
     private tosOpen = false;
+
+    private subject: BehaviorSubject<AvailableScreens|undefined> = new BehaviorSubject(undefined);
+
+    getSubject = () => {
+        return this.subject;
+    };
+
+    reset = () => {
+        this.screensInStack = [];
+        this.modalsInStack = [];
+        this.visibleTab = 'Home';
+        this.tosOpen = false;
+        this.subject.next(undefined);
+    };
 
     addModalToStack = (modalId: AvailableScreens) => {
         this.removeModalFromStack(modalId);
@@ -18,10 +34,12 @@ class NavigationStore {
     addScreenToStack = (screenId: AvailableScreens) => {
         this.removeScreenFromStack(screenId);
         this.screensInStack.unshift(screenId);
+        this.subject.next(screenId);
     };
 
     clearScreensFromStack = () => {
         this.screensInStack = [];
+        this.subject.next(undefined);
     };
 
     getModalsInStack = () => this.modalsInStack;
@@ -42,6 +60,7 @@ class NavigationStore {
         const index = this.screensInStack.indexOf(screenId);
         if (index > -1) {
             this.screensInStack.splice(0, index);
+            this.subject.next(screenId);
         }
     };
 
@@ -49,6 +68,7 @@ class NavigationStore {
         const index = this.screensInStack.indexOf(screenId);
         if (index > -1) {
             this.screensInStack.splice(index, 1);
+            this.subject.next(this.screensInStack[0]);
         }
     };
 

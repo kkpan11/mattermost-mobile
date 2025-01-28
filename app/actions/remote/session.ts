@@ -40,23 +40,27 @@ export const addPushProxyVerificationStateFromLogin = async (serverUrl: string) 
         if (systems.length) {
             await operator.handleSystem({systems, prepareRecordsOnly: false});
         }
+
+        return {};
     } catch (error) {
         logDebug('error setting the push proxy verification state on login', error);
+        return {error};
     }
 };
 export const forceLogoutIfNecessary = async (serverUrl: string, err: unknown) => {
     const database = DatabaseManager.serverDatabases[serverUrl]?.database;
     if (!database) {
-        return {error: `${serverUrl} database not found`};
+        return {error: `${serverUrl} database not found`, logout: false};
     }
 
     const currentUserId = await getCurrentUserId(database);
 
     if (isErrorWithStatusCode(err) && err.status_code === HTTP_UNAUTHORIZED && isErrorWithUrl(err) && err.url?.indexOf('/login') === -1 && currentUserId) {
         await logout(serverUrl);
+        return {error: null, logout: true};
     }
 
-    return {error: null};
+    return {error: null, logout: false};
 };
 
 export const fetchSessions = async (serverUrl: string, currentUserId: string) => {
@@ -145,6 +149,8 @@ export const logout = async (serverUrl: string, skipServerLogout = false, remove
     if (!skipEvents) {
         DeviceEventEmitter.emit(Events.SERVER_LOGOUT, {serverUrl, removeServer});
     }
+
+    return {data: true};
 };
 
 export const cancelSessionNotification = async (serverUrl: string) => {
@@ -163,8 +169,11 @@ export const cancelSessionNotification = async (serverUrl: string) => {
                 prepareRecordsOnly: false,
             });
         }
+
+        return {};
     } catch (e) {
         logError('cancelSessionNotification', e);
+        return {error: e};
     }
 };
 
@@ -196,9 +205,11 @@ export const scheduleSessionNotification = async (serverUrl: string) => {
                 });
             }
         }
+        return {};
     } catch (e) {
         logError('scheduleExpiredNotification', e);
         await forceLogoutIfNecessary(serverUrl, e);
+        return {error: e};
     }
 };
 
@@ -258,7 +269,7 @@ export const ssoLogin = async (serverUrl: string, serverDisplayName: string, ser
     }
 };
 
-async function findSession(serverUrl: string, sessions: Session[]) {
+export async function findSession(serverUrl: string, sessions: Session[]) {
     try {
         const {database} = DatabaseManager.getServerDatabaseAndOperator(serverUrl);
         const expiredSession = await getExpiredSession(database);

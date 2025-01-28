@@ -18,7 +18,7 @@ export const iosPermissions = defineMessages({
     },
     NSCameraUsageDescription: {
         id: 'mobile.ios.plist.NSCameraUsageDescription',
-        defaultMessage: 'Enabling access to your device cameras means you can take photos or videos and upload them to {applicationName}.',
+        defaultMessage: 'Allowing access to your camera enables you to take photos or videos and attach them to messages.',
     },
     NSFaceIDUsageDescription: {
         id: 'mobile.ios.plist.NSFaceIDUsageDescription',
@@ -42,7 +42,7 @@ export const iosPermissions = defineMessages({
     },
     NSPhotoLibraryUsageDescription: {
         id: 'mobile.ios.plist.NSPhotoLibraryUsageDescription',
-        defaultMessage: 'Enabling read access to your photo library means you can upload photos and videos from your device to {applicationName}.',
+        defaultMessage: 'Allowing access to your photo library enables you to select photos or videos and attach them to messages.',
     },
     NSSpeechRecognitionUsageDescription: {
         id: 'mobile.ios.plist.NSSpeechRecognitionUsageDescription',
@@ -153,4 +153,10 @@ export default {
     },
     MANAGE_BOTS: 'manage_bots',
     MANAGE_OTHERS_BOTS: 'manage_others_bots',
+    ADD_BOOKMARK_PUBLIC_CHANNEL: 'add_bookmark_public_channel',
+    ADD_BOOKMARK_PRIVATE_CHANNEL: 'add_bookmark_private_channel',
+    EDIT_BOOKMARK_PUBLIC_CHANNEL: 'edit_bookmark_public_channel',
+    EDIT_BOOKMARK_PRIVATE_CHANNEL: 'edit_bookmark_private_channel',
+    DELETE_BOOKMARK_PUBLIC_CHANNEL: 'delete_bookmark_public_channel',
+    DELETE_BOOKMARK_PRIVATE_CHANNEL: 'delete_bookmark_private_channel',
 };

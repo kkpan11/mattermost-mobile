@@ -7,6 +7,9 @@ import {type Edge, SafeAreaView} from 'react-native-safe-area-context';
 
 import ChannelInfoEnableCalls from '@calls/components/channel_info_enable_calls';
 import ChannelActions from '@components/channel_actions';
+import ConvertToChannelLabel from '@components/channel_actions/convert_to_channel/convert_to_channel_label';
+import ChannelBookmarks from '@components/channel_bookmarks';
+import {General} from '@constants';
 import {useServerUrl} from '@context/server';
 import {useTheme} from '@context/theme';
 import useAndroidHardwareBackHandler from '@hooks/android_back_handler';
@@ -23,13 +26,20 @@ import Title from './title';
 import type {AvailableScreens} from '@typings/screens/navigation';
 
 type Props = {
+    canAddBookmarks: boolean;
+    canEnableDisableCalls: boolean;
+    canManageSettings: boolean;
     channelId: string;
     closeButtonId: string;
     componentId: AvailableScreens;
-    type?: ChannelType;
-    canEnableDisableCalls: boolean;
+    isBookmarksEnabled: boolean;
     isCallsEnabledInChannel: boolean;
+    groupCallsAllowed: boolean;
     canManageMembers: boolean;
+    isConvertGMFeatureAvailable: boolean;
+    isCRTEnabled: boolean;
+    isGuestUser: boolean;
+    type?: ChannelType;
 }
 
 const edges: Edge[] = ['bottom', 'left', 'right'];
@@ -50,13 +60,20 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => ({
 }));
 
 const ChannelInfo = ({
+    canAddBookmarks,
+    canEnableDisableCalls,
+    canManageMembers,
+    canManageSettings,
     channelId,
     closeButtonId,
     componentId,
-    type,
-    canEnableDisableCalls,
+    isBookmarksEnabled,
     isCallsEnabledInChannel,
-    canManageMembers,
+    groupCallsAllowed,
+    isConvertGMFeatureAvailable,
+    isCRTEnabled,
+    isGuestUser,
+    type,
 }: Props) => {
     const theme = useTheme();
     const serverUrl = useServerUrl();
@@ -64,14 +81,19 @@ const ChannelInfo = ({
 
     // NOTE: isCallsEnabledInChannel will be true/false (not undefined) based on explicit state + the DefaultEnabled system setting
     //   which comes from observeIsCallsEnabledInChannel
-    const callsAvailable = isCallsEnabledInChannel;
+    let callsAvailable = isCallsEnabledInChannel;
+    if (!groupCallsAllowed && type !== General.DM_CHANNEL) {
+        callsAvailable = false;
+    }
 
     const onPressed = useCallback(() => {
         return dismissModal({componentId});
     }, [componentId]);
 
-    useNavButtonPressed(closeButtonId, componentId, onPressed, []);
+    useNavButtonPressed(closeButtonId, componentId, onPressed, [onPressed]);
     useAndroidHardwareBackHandler(componentId, onPressed);
+
+    const convertGMOptionAvailable = isConvertGMFeatureAvailable && type === General.GM_CHANNEL && !isGuestUser;
 
     return (
         <SafeAreaView
@@ -89,6 +111,13 @@ const ChannelInfo = ({
                     channelId={channelId}
                     type={type}
                 />
+                {isBookmarksEnabled &&
+                    <ChannelBookmarks
+                        channelId={channelId}
+                        canAddBookmarks={canAddBookmarks}
+                        showInInfo={true}
+                    />
+                }
                 <ChannelActions
                     channelId={channelId}
                     inModal={true}
@@ -103,8 +132,16 @@ const ChannelInfo = ({
                     type={type}
                     callsEnabled={callsAvailable}
                     canManageMembers={canManageMembers}
+                    isCRTEnabled={isCRTEnabled}
+                    canManageSettings={canManageSettings}
                 />
                 <View style={styles.separator}/>
+                {convertGMOptionAvailable &&
+                <>
+                    <ConvertToChannelLabel channelId={channelId}/>
+                    <View style={styles.separator}/>
+                </>
+                }
                 {canEnableDisableCalls &&
                     <>
                         <ChannelInfoEnableCalls

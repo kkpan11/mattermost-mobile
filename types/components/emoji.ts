@@ -2,7 +2,8 @@
 // See LICENSE.txt for license information.
 
 import type CustomEmojiModel from '@typings/database/models/servers/custom_emoji';
-import type {StyleProp, TextStyle, ImageStyle} from 'react-native';
+import type {ImageStyle} from 'expo-image';
+import type {StyleProp, TextStyle} from 'react-native';
 
 // The intersection of the image styles and text styles
 type ImageStyleUniques = Omit<ImageStyle, keyof(TextStyle)>
@@ -15,7 +16,7 @@ export type EmojiProps = {
     size?: number;
     textStyle?: StyleProp<TextStyle>;
     imageStyle?: StyleProp<ImageStyle>;
-    commonStyle?: StyleProp<EmojiCommonStyle>;
+    commonStyle?: StyleProp<Intersection<TextStyle, EmojiCommonStyle>>;
     customEmojis: CustomEmojiModel[];
     testID?: string;
 }

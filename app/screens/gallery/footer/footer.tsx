@@ -9,6 +9,7 @@ import {SafeAreaView, type Edge, useSafeAreaInsets} from 'react-native-safe-area
 import {Events} from '@constants';
 import {GALLERY_FOOTER_HEIGHT} from '@constants/gallery';
 import {changeOpacity} from '@utils/theme';
+import {ensureString} from '@utils/types';
 import {displayUsername} from '@utils/user';
 
 import Actions from './actions';
@@ -35,6 +36,9 @@ type Props = {
     post?: PostModel;
     style: StyleProp<ViewStyle>;
     teammateNameDisplay: string;
+    hasCaptions: boolean;
+    captionEnabled: boolean;
+    onCaptionsPress: () => void;
 }
 
 const AnimatedSafeAreaView = Animated.createAnimatedComponent(SafeAreaView);
@@ -58,6 +62,7 @@ const Footer = ({
     author, canDownloadFiles, channelName, currentUserId,
     enablePostIconOverride, enablePostUsernameOverride, enablePublicLink,
     hideActions, isDirectChannel, item, post, style, teammateNameDisplay,
+    hasCaptions, captionEnabled, onCaptionsPress,
 }: Props) => {
     const showActions = !hideActions && Boolean(item.id) && !item.id?.startsWith('uid');
     const [action, setAction] = useState<GalleryAction>('none');
@@ -67,14 +72,14 @@ const Footer = ({
 
     let overrideIconUrl;
     if (enablePostIconOverride && post?.props?.use_user_icon !== 'true' && post?.props?.override_icon_url) {
-        overrideIconUrl = post.props.override_icon_url;
+        overrideIconUrl = ensureString(post.props.override_icon_url);
     }
 
     let userDisplayName;
     if (item.type === 'avatar') {
         userDisplayName = item.name;
     } else if (enablePostUsernameOverride && post?.props?.override_username) {
-        userDisplayName = post.props.override_username as string;
+        userDisplayName = ensureString(post.props.override_username);
     } else {
         userDisplayName = displayUsername(author, undefined, teammateNameDisplay);
     }
@@ -121,10 +126,10 @@ const Footer = ({
             <View style={styles.container}>
                 <View style={styles.details}>
                     {item.type !== 'avatar' &&
-                    <Avatar
-                        authorId={author?.id}
-                        overrideIconUrl={overrideIconUrl}
-                    />
+                        <Avatar
+                            author={author}
+                            overrideIconUrl={overrideIconUrl}
+                        />
                     }
                     <Details
                         channelName={item.type === 'avatar' ? '' : channelName}
@@ -142,6 +147,9 @@ const Footer = ({
                     onCopyPublicLink={handleCopyLink}
                     onDownload={handleDownload}
                     onShare={handleShare}
+                    hasCaptions={hasCaptions}
+                    captionEnabled={captionEnabled}
+                    onCaptionsPress={onCaptionsPress}
                 />
                 }
             </View>

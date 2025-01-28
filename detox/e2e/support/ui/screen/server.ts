@@ -1,6 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import {Alert} from '@support/ui/component';
 import {isAndroid, isIos, timeouts, wait} from '@support/utils';
 import {expect} from 'detox';
 
@@ -19,6 +20,8 @@ class ServerScreen {
         displayHelp: 'server_form.display_help',
         connectButton: 'server_form.connect.button',
         connectButtonDisabled: 'server_form.connect.button.disabled',
+        usernameInput: 'login_form.username.input',
+        usernameInputError: 'login_form.username.input.error',
     };
 
     serverScreen = element(by.id(this.testID.serverScreen));
@@ -34,6 +37,7 @@ class ServerScreen {
     displayHelp = element(by.id(this.testID.displayHelp));
     connectButton = element(by.id(this.testID.connectButton));
     connectButtonDisabled = element(by.id(this.testID.connectButtonDisabled));
+    usernameInput = element(by.id(this.testID.usernameInput));
 
     toBeVisible = async () => {
         await waitFor(this.serverScreen).toExist().withTimeout(timeouts.TEN_SEC);
@@ -45,14 +49,24 @@ class ServerScreen {
     connectToServer = async (serverUrl: string, serverDisplayName: string) => {
         await this.toBeVisible();
         await this.serverUrlInput.replaceText(serverUrl);
-        await this.serverUrlInput.tapReturnKey();
         await this.serverDisplayNameInput.replaceText(serverDisplayName);
         if (isAndroid()) {
-            await this.serverDisplayNameInput.tapReturnKey();
+            await this.tapConnectButton();
         }
         if (isIos()) {
             await this.tapConnectButton();
+            if (serverUrl.includes('127.0.0.1') || !process.env.CI) {
+                try {
+                    // # Tap alert okay button
+                    await waitFor(Alert.okayButton).toExist().withTimeout(timeouts.TEN_SEC);
+                    await Alert.okayButton.tap();
+                } catch (error) {
+                    /* eslint-disable no-console */
+                    console.log('Alert button did not appear!');
+                }
+            }
         }
+        await waitFor(this.usernameInput).toExist().withTimeout(timeouts.FOUR_SEC);
     };
 
     close = async () => {

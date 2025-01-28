@@ -1,10 +1,10 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import {Button} from '@rneui/base';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {useIntl} from 'react-intl';
 import {Keyboard, Platform, Text, useWindowDimensions, View} from 'react-native';
-import Button from 'react-native-button';
 import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
 import {Navigation} from 'react-native-navigation';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
@@ -15,14 +15,14 @@ import FloatingTextInput from '@components/floating_text_input_label';
 import FormattedText from '@components/formatted_text';
 import {Screens} from '@constants';
 import useAndroidHardwareBackHandler from '@hooks/android_back_handler';
-import {useIsTablet} from '@hooks/device';
+import {useAvoidKeyboard} from '@hooks/device';
 import Background from '@screens/background';
 import {buttonBackgroundStyle, buttonTextStyle} from '@utils/buttonStyles';
 import {isEmail} from '@utils/helpers';
 import {changeOpacity, makeStyleSheetFromTheme} from '@utils/theme';
 import {typography} from '@utils/typography';
 
-import Inbox from './inbox.svg';
+import Inbox from './inbox';
 
 import type {AvailableScreens} from '@typings/screens/navigation';
 
@@ -93,7 +93,6 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => ({
 const ForgotPassword = ({componentId, serverUrl, theme}: Props) => {
     const dimensions = useWindowDimensions();
     const translateX = useSharedValue(dimensions.width);
-    const isTablet = useIsTablet();
     const [email, setEmail] = useState<string>('');
     const [error, setError] = useState<string>('');
     const [isPasswordLinkSent, setIsPasswordLinkSent] = useState<boolean>(false);
@@ -101,24 +100,12 @@ const ForgotPassword = ({componentId, serverUrl, theme}: Props) => {
     const keyboardAwareRef = useRef<KeyboardAwareScrollView>(null);
     const styles = getStyleSheet(theme);
 
+    useAvoidKeyboard(keyboardAwareRef);
+
     const changeEmail = useCallback((emailAddress: string) => {
         setEmail(emailAddress);
         setError('');
     }, []);
-
-    const onFocus = useCallback(() => {
-        if (Platform.OS === 'ios') {
-            let offsetY = 150;
-            if (isTablet) {
-                const {width, height} = dimensions;
-                const isLandscape = width > height;
-                offsetY = (isLandscape ? 230 : 150);
-            }
-            requestAnimationFrame(() => {
-                keyboardAwareRef.current?.scrollToPosition(0, offsetY);
-            });
-        }
-    }, [dimensions]);
 
     const onReturn = useCallback(() => {
         Navigation.popTo(Screens.LOGIN);
@@ -146,7 +133,7 @@ const ForgotPassword = ({componentId, serverUrl, theme}: Props) => {
             id: 'password_send.generic_error',
             defaultMessage: 'We were unable to send you a reset password link. Please contact your System Admin for assistance.',
         }));
-    }, [email]);
+    }, [email, formatMessage, serverUrl]);
 
     const getCenterContent = () => {
         if (isPasswordLinkSent) {
@@ -172,7 +159,7 @@ const ForgotPassword = ({componentId, serverUrl, theme}: Props) => {
                     <Button
                         testID='password_send.return'
                         onPress={onReturn}
-                        containerStyle={[styles.returnButton, buttonBackgroundStyle(theme, 'lg', 'primary', 'default')]}
+                        buttonStyle={[styles.returnButton, buttonBackgroundStyle(theme, 'lg', 'primary', 'default')]}
                     >
                         <FormattedText
                             id='password_send.return'
@@ -188,7 +175,7 @@ const ForgotPassword = ({componentId, serverUrl, theme}: Props) => {
             <KeyboardAwareScrollView
                 bounces={false}
                 contentContainerStyle={styles.innerContainer}
-                enableAutomaticScroll={Platform.OS === 'android'}
+                enableAutomaticScroll={false}
                 enableOnAndroid={false}
                 enableResetScrollToCoords={true}
                 extraScrollHeight={0}
@@ -224,7 +211,6 @@ const ForgotPassword = ({componentId, serverUrl, theme}: Props) => {
                             keyboardType='email-address'
                             label={formatMessage({id: 'login.email', defaultMessage: 'Email'})}
                             onChangeText={changeEmail}
-                            onFocus={onFocus}
                             onSubmitEditing={submitResetPassword}
                             returnKeyType='next'
                             spellCheck={false}
@@ -234,7 +220,8 @@ const ForgotPassword = ({componentId, serverUrl, theme}: Props) => {
                         />
                         <Button
                             testID='forgot.password.button'
-                            containerStyle={[styles.returnButton, buttonBackgroundStyle(theme, 'lg', 'primary', email ? 'default' : 'disabled'), error ? styles.error : undefined]}
+                            buttonStyle={[styles.returnButton, buttonBackgroundStyle(theme, 'lg', 'primary', 'default'), error ? styles.error : undefined]}
+                            disabledStyle={[styles.returnButton, buttonBackgroundStyle(theme, 'lg', 'primary', 'disabled'), error ? styles.error : undefined]}
                             disabled={!email}
                             onPress={submitResetPassword}
                         >
@@ -269,7 +256,7 @@ const ForgotPassword = ({componentId, serverUrl, theme}: Props) => {
         const unsubscribe = Navigation.events().registerComponentListener(listener, componentId);
 
         return () => unsubscribe.remove();
-    }, [dimensions]);
+    }, [componentId, dimensions]);
 
     useEffect(() => {
         translateX.value = 0;
